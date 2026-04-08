@@ -6,7 +6,7 @@
 <title>OSCN Petition Harvester</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500&display=swap');
-
+ 
 :root {
   --bg: #0e0f11;
   --surface: #161719;
@@ -20,9 +20,9 @@
   --text: #d8dce8;
   --muted: #52575f;
 }
-
+ 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-
+ 
 body {
   background: var(--bg);
   color: var(--text);
@@ -30,7 +30,7 @@ body {
   min-height: 100vh;
   padding: 28px 20px;
 }
-
+ 
 /* Scanline texture */
 body::before {
   content: '';
@@ -40,19 +40,19 @@ body::before {
   pointer-events: none;
   z-index: 0;
 }
-
+ 
 header {
   margin-bottom: 32px;
   position: relative;
 }
-
+ 
 .title-row {
   display: flex;
   align-items: baseline;
   gap: 16px;
   margin-bottom: 4px;
 }
-
+ 
 h1 {
   font-family: 'Bebas Neue', sans-serif;
   font-size: clamp(28px, 5vw, 48px);
@@ -60,20 +60,20 @@ h1 {
   color: var(--accent);
   line-height: 1;
 }
-
+ 
 .sub {
   font-size: 10px;
   color: var(--muted);
   letter-spacing: 2px;
   text-transform: uppercase;
 }
-
+ 
 .tagline {
   font-size: 11px;
   color: var(--muted);
   margin-top: 6px;
 }
-
+ 
 /* Warning banner */
 .banner {
   background: rgba(255,170,71,.06);
@@ -86,16 +86,16 @@ h1 {
   margin-bottom: 24px;
   line-height: 1.7;
 }
-
+ 
 .layout {
   display: grid;
   grid-template-columns: 340px 1fr;
   gap: 18px;
   align-items: start;
 }
-
+ 
 @media(max-width: 860px) { .layout { grid-template-columns: 1fr; } }
-
+ 
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -104,7 +104,7 @@ h1 {
   margin-bottom: 16px;
 }
 .card:last-child { margin-bottom: 0; }
-
+ 
 .card-title {
   font-size: 9px;
   font-weight: 500;
@@ -125,7 +125,7 @@ h1 {
   border-radius: 50%;
   flex-shrink: 0;
 }
-
+ 
 label {
   display: block;
   font-size: 10px;
@@ -134,7 +134,7 @@ label {
   letter-spacing: 1px;
   text-transform: uppercase;
 }
-
+ 
 select, input[type="text"], input[type="number"] {
   width: 100%;
   background: var(--bg);
@@ -151,15 +151,15 @@ select, input[type="text"], input[type="number"] {
 }
 select:focus, input:focus { border-color: var(--accent); }
 select option { background: var(--bg); }
-
+ 
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-
+ 
 .delay-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
-
+ 
 .hint {
   font-size: 10px;
   color: var(--muted);
@@ -167,9 +167,9 @@ select option { background: var(--bg); }
   margin-bottom: 12px;
   line-height: 1.6;
 }
-
+ 
 .hint.green { color: var(--green); }
-
+ 
 #run-btn {
   width: 100%;
   background: var(--accent);
@@ -186,7 +186,7 @@ select option { background: var(--bg); }
 }
 #run-btn:hover { background: #f5ff7a; transform: translateY(-1px); }
 #run-btn:disabled { opacity: .3; cursor: not-allowed; transform: none; }
-
+ 
 #stop-btn {
   width: 100%;
   background: none;
@@ -202,13 +202,13 @@ select option { background: var(--bg); }
   transition: all .15s;
 }
 #stop-btn:hover { background: rgba(255,79,79,.08); }
-
+ 
 /* Progress */
 #prog-wrap { display: none; margin-top: 14px; }
 .prog-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-bottom: 5px; }
 .prog-track { background: var(--border); border-radius: 99px; height: 2px; overflow: hidden; }
 #prog-fill { height: 100%; background: var(--accent); border-radius: 99px; width: 0%; transition: width .4s; }
-
+ 
 /* Status log */
 #log-wrap { margin-top: 14px; max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
 .log-item {
@@ -225,17 +225,17 @@ select option { background: var(--bg); }
 .log-item.warn { background: rgba(255,170,71,.06); color: var(--orange); }
 .log-item.err { background: rgba(255,79,79,.06); color: var(--red); }
 .log-item.skip { color: #3a3e47; }
-
+ 
 /* Results panel */
 #results-card { display: none; }
-
+ 
 .stats-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin-bottom: 16px;
 }
-
+ 
 .stat {
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -253,7 +253,7 @@ select option { background: var(--bg); }
 .stat-num.green { color: var(--green); }
 .stat-num.red { color: var(--red); }
 .stat-label { font-size: 9px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 3px; }
-
+ 
 .tbtn-group { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .tbtn {
   background: var(--surface2);
@@ -269,7 +269,7 @@ select option { background: var(--bg); }
 .tbtn:hover { border-color: var(--accent); color: var(--accent); }
 .tbtn.primary { border-color: rgba(232,255,71,.3); color: var(--accent); }
 .tbtn.primary:hover { background: rgba(232,255,71,.06); }
-
+ 
 /* Case list */
 .tscroll {
   overflow-x: auto;
@@ -298,7 +298,7 @@ td {
 }
 tr:nth-child(even) td { background: rgba(22,23,25,.5); }
 tr:hover td { background: rgba(232,255,71,.02); }
-
+ 
 .tag {
   display: inline-block;
   font-size: 9px;
@@ -311,10 +311,10 @@ tr:hover td { background: rgba(232,255,71,.02); }
 .tag.skipped { background: rgba(82,87,95,.1); color: var(--muted); border: 1px solid var(--border); }
 .tag.error { background: rgba(255,79,79,.1); color: var(--red); border: 1px solid rgba(255,79,79,.2); }
 .tag.pending { background: rgba(71,212,255,.1); color: var(--accent2); border: 1px solid rgba(71,212,255,.2); }
-
+ 
 .case-link { color: var(--accent2); text-decoration: none; font-size: 11px; }
 .case-link:hover { text-decoration: underline; }
-
+ 
 .pdf-btn {
   background: none;
   border: 1px solid rgba(232,255,71,.3);
@@ -329,7 +329,7 @@ tr:hover td { background: rgba(232,255,71,.02); }
   display: inline-block;
 }
 .pdf-btn:hover { background: rgba(232,255,71,.08); }
-
+ 
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin {
   display: inline-block;
@@ -349,7 +349,7 @@ tr:hover td { background: rgba(232,255,71,.02); }
   border-radius: 50%;
   animation: spin .7s linear infinite;
 }
-
+ 
 #empty-state {
   text-align: center;
   padding: 60px 20px;
@@ -360,7 +360,7 @@ tr:hover td { background: rgba(232,255,71,.02); }
 </style>
 </head>
 <body>
-
+ 
 <header>
   <div class="title-row">
     <h1>OSCN Harvester</h1>
@@ -368,22 +368,38 @@ tr:hover td { background: rgba(232,255,71,.02); }
   </div>
   <div class="tagline">Oklahoma · Canadian · Cleveland · Logan Counties · Today's filings only · Human-paced delays</div>
 </header>
-
+ 
 <div class="banner">
   ⚠️ This tool accesses public OSCN court records at a deliberate, human-paced rate. It does not hammer the server —
   each request waits a randomized delay before the next. Use responsibly. Do not run multiple instances simultaneously.
   OSCN data is public record under Oklahoma law (51 O.S. §24A.1).
 </div>
-
+ 
 <div class="layout">
-
+ 
 <!-- LEFT PANEL -->
 <div>
   <div class="card">
     <div class="card-title">Search Parameters</div>
-
-    <label>County</label>
-    <select id="county">
+ 
+    <label>Counties</label>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;background:#1e2023;border:1px solid #2a2d32;border-radius:6px;padding:10px;">
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:11px;color:#d8dce8;letter-spacing:0;margin:0;cursor:pointer;">
+        <input type="checkbox" id="county-oklahoma" value="oklahoma" checked> Oklahoma County
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:11px;color:#d8dce8;letter-spacing:0;margin:0;cursor:pointer;">
+        <input type="checkbox" id="county-canadian" value="canadian" checked> Canadian County
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:11px;color:#d8dce8;letter-spacing:0;margin:0;cursor:pointer;">
+        <input type="checkbox" id="county-cleveland" value="cleveland" checked> Cleveland County
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:11px;color:#d8dce8;letter-spacing:0;margin:0;cursor:pointer;">
+        <input type="checkbox" id="county-logan" value="logan" checked> Logan County
+      </label>
+    </div>
+ 
+    <label style="display:none;">County (hidden)</label>
+    <select id="county" style="display:none;">
       <option value="adair">Adair</option>
       <option value="alfalfa">Alfalfa</option>
       <option value="atoka">Atoka</option>
@@ -462,7 +478,7 @@ tr:hover td { background: rgba(232,255,71,.02); }
       <option value="woods">Woods</option>
       <option value="woodward">Woodward</option>
     </select>
-
+ 
     <div class="row2">
       <div>
         <label>Filed Date</label>
@@ -479,7 +495,7 @@ tr:hover td { background: rgba(232,255,71,.02); }
       </div>
     </div>
     <div class="hint" style="margin-top:-8px;margin-bottom:12px;">Set date to today to only pull today's new filings. Leave blank for all filings in the year.</div>
-
+ 
     <label>Case Types to Collect</label>
     <div style="display:flex;gap:12px;margin-bottom:12px;">
       <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-size:11px;color:var(--text);letter-spacing:0;margin:0;">
@@ -489,23 +505,23 @@ tr:hover td { background: rgba(232,255,71,.02); }
         <input type="checkbox" id="type-probate" checked style="width:auto;margin:0;"> Probate (PB)
       </label>
     </div>
-
+ 
     <label style="display:none;">Case Type</label>
     <select id="casetype" style="display:none;">
       <option value="CJ" selected>CJ — Civil (Foreclosure)</option>
       <option value="PB">PB — Probate</option>
     </select>
-
+ 
     <label>Keyword Filter (optional)</label>
     <input type="text" id="keyword" placeholder="Leave blank to get all foreclosures">
     <div class="hint">Leave blank to collect all pre-foreclosure and probate filings.</div>
-
+ 
     <label>Max Cases Per County</label>
     <input type="number" id="maxcases" value="30" min="1" max="200">
     <div class="hint">Recommended: 20-50. Each case = 2 requests.</div>
-
+ 
     <div class="card-title" style="margin-top:4px;">Request Pacing</div>
-
+ 
     <div class="delay-row">
       <div>
         <label>Min Delay (sec)</label>
@@ -517,10 +533,10 @@ tr:hover td { background: rgba(232,255,71,.02); }
       </div>
     </div>
     <div class="hint green">✓ Each page request waits a random delay in this range — mimics human browsing speed. Default 4–9s is safe and courteous.</div>
-
+ 
     <button id="run-btn" onclick="startHarvest()">▶ START HARVEST</button>
     <button id="stop-btn" onclick="stopHarvest()">■ STOP</button>
-
+ 
     <div id="prog-wrap">
       <div class="prog-label">
         <span id="prog-text">Initializing...</span>
@@ -528,11 +544,11 @@ tr:hover td { background: rgba(232,255,71,.02); }
       </div>
       <div class="prog-track"><div id="prog-fill"></div></div>
     </div>
-
+ 
     <div id="log-wrap"></div>
   </div>
 </div>
-
+ 
 <!-- RIGHT PANEL -->
 <div>
   <div class="card" id="empty-card">
@@ -545,7 +561,7 @@ tr:hover td { background: rgba(232,255,71,.02); }
       </div>
     </div>
   </div>
-
+ 
   <div class="card" id="results-card">
     <div class="stats-row">
       <div class="stat">
@@ -565,13 +581,13 @@ tr:hover td { background: rgba(232,255,71,.02); }
         <div class="stat-label">Errors</div>
       </div>
     </div>
-
+ 
     <div class="tbtn-group">
       <button class="tbtn primary" onclick="downloadAllPDFs()">⬇ Download All PDFs</button>
       <button class="tbtn" onclick="copyLinks()">📋 Copy PDF Links</button>
       <button class="tbtn" onclick="exportCSV()">CSV Export</button>
     </div>
-
+ 
     <div class="tscroll">
       <table>
         <thead>
@@ -588,15 +604,15 @@ tr:hover td { background: rgba(232,255,71,.02); }
     </div>
   </div>
 </div>
-
+ 
 </div>
-
+ 
 <script>
 let running = false;
 let stopRequested = false;
 let cases = [];
 let stats = {scanned:0, found:0, skip:0, err:0};
-
+ 
 // Set today's date as default
 window.addEventListener('load', () => {
   const today = new Date();
@@ -606,20 +622,20 @@ window.addEventListener('load', () => {
   document.getElementById('filed-date').value = `${yyyy}-${mm}-${dd}`;
   document.getElementById('year').value = String(yyyy);
 });
-
+ 
 const OSCN_BASE = 'https://www.oscn.net';
-
+ 
 // ── Utilities ─────────────────────────────────────────────────────────────────
-
+ 
 function randDelay() {
   const mn = (parseFloat(document.getElementById('delay-min').value) || 4) * 1000;
   const mx = (parseFloat(document.getElementById('delay-max').value) || 9) * 1000;
   // Add a small jitter on top for extra naturalness
   return mn + Math.random() * (mx - mn) + Math.random() * 800;
 }
-
+ 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
+ 
 function log(msg, type='info') {
   const wrap = document.getElementById('log-wrap');
   const el = document.createElement('div');
@@ -629,23 +645,23 @@ function log(msg, type='info') {
   wrap.appendChild(el);
   wrap.scrollTop = wrap.scrollHeight;
 }
-
+ 
 function setProgress(done, total, msg) {
   const pct = total > 0 ? Math.round(done/total*100) : 0;
   document.getElementById('prog-fill').style.width = pct + '%';
   document.getElementById('prog-pct').textContent = pct + '%';
   document.getElementById('prog-text').textContent = msg;
 }
-
+ 
 function updateStats() {
   document.getElementById('stat-scanned').textContent = stats.scanned;
   document.getElementById('stat-found').textContent   = stats.found;
   document.getElementById('stat-skip').textContent    = stats.skip;
   document.getElementById('stat-err').textContent     = stats.err;
 }
-
+ 
 // ── Fetch helpers (all requests go through the page fetch) ────────────────────
-
+ 
 async function fetchOSCN(url) {
   // Fetch from OSCN — no special headers, just like a browser navigation
   const res = await fetch(url, {
@@ -655,9 +671,9 @@ async function fetchOSCN(url) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return await res.text();
 }
-
+ 
 // ── Parse results page — returns array of {caseNum, dateFiled, style} ─────────
-
+ 
 function parseResultsPage(html) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
@@ -676,19 +692,19 @@ function parseResultsPage(html) {
   }
   return results;
 }
-
+ 
 // ── Parse docket page — find petition PDF doc ID ───────────────────────────────
-
+ 
 function parseDocketPage(html, county) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
-
+ 
   // Look for the petition row: contains "PETITION FOR FORECLOSURE" or "PETITION" as first event
   const rows = [...doc.querySelectorAll('tr')].filter(r => r.cells.length >= 5);
-
+ 
   let petitionDocId = null;
   let caseId = null;
-
+ 
   // Extract caseId from any OnLineDocuments link on the page
   const allLinks = [...doc.querySelectorAll('a')];
   for (const a of allLinks) {
@@ -698,7 +714,7 @@ function parseDocketPage(html, county) {
     const docMatch = href.match(/docid=(\d+)/i);
     if (docMatch && !petitionDocId) { petitionDocId = docMatch[1]; }
   }
-
+ 
   // Also try to find docID from inline text like "(#1060546765)"
   if (!petitionDocId) {
     const bodyText = doc.body?.innerHTML || '';
@@ -715,9 +731,9 @@ function parseDocketPage(html, county) {
       if (firstDoc) petitionDocId = firstDoc[1];
     }
   }
-
+ 
   if (!petitionDocId) return null;
-
+ 
   // Build PDF URL
   // Pattern: /applications/oscn/OnLineDocuments.aspx?caseid=XXXXXX&docid=XXXXXXX
   if (caseId) {
@@ -726,9 +742,9 @@ function parseDocketPage(html, county) {
   // Fallback: direct doc URL
   return `${OSCN_BASE}/applications/oscn/deliverdocument.asp?documentID=${petitionDocId}`;
 }
-
+ 
 // ── Render table row ──────────────────────────────────────────────────────────
-
+ 
 function renderRow(c, idx) {
   const tbody = document.getElementById('tbody');
   let tr = document.getElementById('row-' + idx);
@@ -737,7 +753,7 @@ function renderRow(c, idx) {
     tr.id = 'row-' + idx;
     tbody.appendChild(tr);
   }
-
+ 
   const statusTag = {
     pending: '<span class="tag pending"><span class="spin-sm"></span> scanning</span>',
     found:   '<span class="tag found">✓ PDF found</span>',
@@ -745,11 +761,11 @@ function renderRow(c, idx) {
     error:   '<span class="tag error">error</span>',
     nopdoc:  '<span class="tag skipped">no petition doc</span>',
   }[c.status] || '<span class="tag skipped">—</span>';
-
+ 
   const pdfCell = c.pdfUrl
     ? `<a class="pdf-btn" href="${c.pdfUrl}" target="_blank" rel="noopener">⬇ PDF</a>`
     : '—';
-
+ 
   tr.innerHTML = `
     <td><a class="case-link" href="${OSCN_BASE}/dockets/GetCaseInformation.aspx?db=${c.county}&number=${c.caseNum}" target="_blank">${c.caseNum}</a></td>
     <td style="color:var(--accent);white-space:nowrap">${c.dateFiled}</td>
@@ -758,44 +774,48 @@ function renderRow(c, idx) {
     <td>${pdfCell}</td>
   `;
 }
-
+ 
 // ── Main harvest loop ─────────────────────────────────────────────────────────
-
+ 
 async function startHarvest() {
   if (running) return;
-
+ 
   // Get selected counties
   const countyChecks = ['oklahoma','canadian','cleveland','logan'];
-  const selectedCounties = countyChecks.filter(c => document.getElementById('county-'+c)?.checked);
+  const selectedCounties = countyChecks.filter(c => {
+    const el = document.getElementById('county-'+c);
+    return el && el.checked;
+  });
+  console.log('Selected counties:', selectedCounties);
   if (!selectedCounties.length) { alert('Select at least one county.'); return; }
-
+ 
   // Get selected case types
   const doForeclosure = document.getElementById('type-foreclosure')?.checked;
   const doProbate = document.getElementById('type-probate')?.checked;
   if (!doForeclosure && !doProbate) { alert('Select at least one case type.'); return; }
-
+ 
   const year      = document.getElementById('year').value;
   const keyword   = document.getElementById('keyword').value.trim().toUpperCase();
   const maxCases  = parseInt(document.getElementById('maxcases').value) || 30;
   const filedDate = document.getElementById('filed-date').value; // YYYY-MM-DD
-
+ 
   // Build run queue: county x casetype combinations
   const caseTypes = [];
   if (doForeclosure) caseTypes.push('CJ');
   if (doProbate) caseTypes.push('PB');
-
+ 
   const runQueue = [];
   for (const county of selectedCounties) {
     for (const ct of caseTypes) {
       runQueue.push({county, caseType: ct});
     }
   }
-
+ 
   running = true;
   stopRequested = false;
   cases = [];
   stats = {scanned:0, found:0, skip:0, err:0};
-
+ 
   document.getElementById('run-btn').disabled = true;
   document.getElementById('stop-btn').style.display = 'block';
   document.getElementById('prog-wrap').style.display = 'block';
@@ -804,20 +824,20 @@ async function startHarvest() {
   document.getElementById('results-card').style.display = 'block';
   document.getElementById('tbody').innerHTML = '';
   updateStats();
-
+ 
   // Format date filter for display
   const dateLabel = filedDate ? ` · filed ${filedDate}` : ` · all of ${year}`;
   log(`Starting harvest — ${selectedCounties.join(', ').toUpperCase()} · ${caseTypes.join('+')}${dateLabel} · max ${maxCases}/county`);
-
+ 
   // ── Run each county+casetype combination ────────────────────────
   for (const {county, caseType} of runQueue) {
     if (stopRequested) break;
-
+ 
     log(`
 ── ${county.toUpperCase()} · ${caseType} ──`, 'ok');
-
+ 
     const searchUrl = `${OSCN_BASE}/dockets/Results.aspx?db=${county}&number=${caseType}-${year}&cat=&cn=&pn=&pb=&pe=&jn=&cf=&ce=&sort=fileddate&dmn=&dmc=&dmf=&dmt=&dmi=`;
-
+ 
     let allCases = [];
     try {
       const html = await fetchOSCN(searchUrl);
@@ -827,7 +847,7 @@ async function startHarvest() {
       log(`Failed to load ${county} ${caseType} list: ${e.message}`, 'err');
       continue;
     }
-
+ 
     // Filter by date if set
     let filtered = allCases;
     if (filedDate) {
@@ -841,37 +861,37 @@ async function startHarvest() {
       });
       log(`Date filter ${filedDate}: ${filtered.length} cases filed today`, filtered.length > 0 ? 'ok' : 'warn');
     }
-
+ 
     // Keyword filter
     if (keyword) {
       filtered = filtered.filter(c => c.style.toUpperCase().includes(keyword));
       log(`Keyword "${keyword}": ${filtered.length} matching`, 'info');
     }
-
+ 
     const queue = filtered.slice(0, maxCases);
     if (!queue.length) { log(`No cases to process for ${county} ${caseType}`, 'warn'); continue; }
-
+ 
     log(`Processing ${queue.length} cases...`);
-
+ 
     for (let i = 0; i < queue.length; i++) {
       if (stopRequested) { log('Stopped by user.', 'warn'); break; }
-
+ 
       const c = { ...queue[i], status: 'pending', pdfUrl: null, county };
       cases.push(c);
       const idx = cases.length - 1;
       renderRow(c, idx);
-
+ 
       setProgress(idx, cases.length + queue.length - i - 1, `Scanning ${c.caseNum} (${county})`);
       stats.scanned++;
       updateStats();
-
+ 
       if (i > 0 || runQueue.indexOf({county, caseType}) > 0) {
         const wait = randDelay();
         log(`Waiting ${(wait/1000).toFixed(1)}s...`, 'info');
         await sleep(wait);
       }
       if (stopRequested) break;
-
+ 
       const docketUrl = `${OSCN_BASE}/dockets/GetCaseInformation.aspx?db=${county}&number=${c.caseNum}`;
       try {
         const html = await fetchOSCN(docketUrl);
@@ -887,36 +907,36 @@ async function startHarvest() {
         c.status = 'error'; stats.err++;
         log(`${c.caseNum} — error: ${e.message}`, 'err');
       }
-
+ 
       renderRow(c, idx);
       updateStats();
     }
   }
-
+ 
   setProgress(1, 1, `Done — ${stats.found} PDFs found across ${selectedCounties.length} counties`);
   log(`Harvest complete! ${stats.found} PDFs found · ${stats.skip} skipped · ${stats.err} errors.`, 'ok');
   finishHarvest();
 }
-
+ 
 function stopHarvest() {
   stopRequested = true;
   log('Stop requested — finishing current request...', 'warn');
 }
-
+ 
 function finishHarvest() {
   running = false;
   document.getElementById('run-btn').disabled = false;
   document.getElementById('stop-btn').style.display = 'none';
 }
-
+ 
 // ── Download all found PDFs ───────────────────────────────────────────────────
-
+ 
 async function downloadAllPDFs() {
   const found = cases.filter(c => c.pdfUrl);
   if (!found.length) return alert('No PDFs found yet.');
-
+ 
   log(`Opening ${found.length} PDFs — your browser will download each one...`, 'ok');
-
+ 
   for (let i = 0; i < found.length; i++) {
     const c = found[i];
     const a = document.createElement('a');
@@ -931,9 +951,9 @@ async function downloadAllPDFs() {
     if (i < found.length - 1) await sleep(1200);
   }
 }
-
+ 
 // ── Copy PDF links ────────────────────────────────────────────────────────────
-
+ 
 function copyLinks() {
   const found = cases.filter(c => c.pdfUrl);
   if (!found.length) return alert('No PDFs found yet.');
@@ -943,9 +963,9 @@ function copyLinks() {
   btn.textContent = '✓ Copied!';
   setTimeout(() => btn.textContent = '📋 Copy PDF Links', 1500);
 }
-
+ 
 // ── CSV Export ────────────────────────────────────────────────────────────────
-
+ 
 function exportCSV() {
   if (!cases.length) return alert('Nothing to export yet.');
   const headers = ['Case Number','Date Filed','Style','Date Closed','Status','PDF URL'];
