@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -369,6 +370,15 @@ tr:hover td { background: rgba(232,255,71,.02); }
   <div class="tagline">Oklahoma · Canadian · Cleveland · Logan Counties · Today's filings only · Human-paced delays</div>
 </header>
  
+<div id="captcha-banner" style="display:none;background:rgba(255,79,79,.1);border:1px solid rgba(255,79,79,.4);border-left:3px solid #ff4f4f;border-radius:6px;padding:14px;font-size:11px;color:#ff4f4f;margin-bottom:16px;line-height:1.8;">
+  ⚠️ <strong>CAPTCHA Required!</strong><br>
+  OSCN is showing a security check. Please:<br>
+  1. Open <a href="https://www.oscn.net" target="_blank" style="color:#ff4f4f;">oscn.net</a> in a new tab<br>
+  2. Complete the CAPTCHA<br>
+  3. Come back here and click <strong>Resume</strong><br><br>
+  <button onclick="resumeHarvest()" style="background:#ff4f4f;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:11px;">▶ Resume After CAPTCHA</button>
+</div>
+ 
 <div class="banner">
   ⚠️ This tool accesses public OSCN court records at a deliberate, human-paced rate. It does not hammer the server —
   each request waits a randomized delay before the next. Use responsibly. Do not run multiple instances simultaneously.
@@ -624,6 +634,7 @@ window.addEventListener('load', () => {
 });
  
 const OSCN_BASE = 'https://www.oscn.net';
+const PROXY_BASE = 'https://oscn-proxy.xfutureinvestmentsllc.workers.dev/oscn';
  
 // ── Utilities ─────────────────────────────────────────────────────────────────
  
@@ -663,13 +674,27 @@ function updateStats() {
 // ── Fetch helpers (all requests go through the page fetch) ────────────────────
  
 async function fetchOSCN(url) {
-  // Fetch from OSCN — no special headers, just like a browser navigation
-  const res = await fetch(url, {
-    credentials: 'include',
-    headers: { 'Accept': 'text/html,application/xhtml+xml' }
+  // Route through Cloudflare Worker proxy to avoid CORS issues
+  // Convert https://www.oscn.net/path?query to proxy/oscn/path?query
+  const proxyUrl = url.replace('https://www.oscn.net', PROXY_BASE);
+  
+  const res = await fetch(proxyUrl, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' }
   });
+ 
+  // Check for CAPTCHA response from proxy
+  if (res.status === 429) {
+    const data = await res.json();
+    if (data.error === 'CAPTCHA_REQUIRED') {
+      throw new Error('CAPTCHA_REQUIRED');
+    }
+  }
+ 
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await res.text();
+  
+  const text = await res.text();
+  return text;
 }
  
 // ── Parse results page — returns array of {caseNum, dateFiled, style} ─────────
@@ -904,6 +929,13 @@ async function startHarvest() {
           log(`${c.caseNum} — no petition doc`, 'skip');
         }
       } catch(e) {
+        if (e.message === 'CAPTCHA_REQUIRED') {
+          // Pause and alert user
+          stopRequested = true;
+          document.getElementById('captcha-banner').style.display = 'block';
+          log('⚠️ CAPTCHA detected! Please complete it at oscn.net then click Resume.', 'err');
+          break;
+        }
         c.status = 'error'; stats.err++;
         log(`${c.caseNum} — error: ${e.message}`, 'err');
       }
@@ -921,6 +953,13 @@ async function startHarvest() {
 function stopHarvest() {
   stopRequested = true;
   log('Stop requested — finishing current request...', 'warn');
+}
+ 
+function resumeHarvest() {
+  document.getElementById('captcha-banner').style.display = 'none';
+  stopRequested = false;
+  log('Resuming harvest after CAPTCHA...', 'ok');
+  startHarvest();
 }
  
 function finishHarvest() {
@@ -982,3 +1021,4 @@ function exportCSV() {
 </script>
 </body>
 </html>
+ 
