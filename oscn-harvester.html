@@ -738,75 +738,77 @@ function parseResultsPage(html) {
   return results;
 }
 
-// ── Parse docket page — find petition PDF doc ID ───────────────────────────────
+// ── Parse docket page — find the correct petition PDF ────────────────────────
 
 function parseDocketPage(html, county) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
-  const bodyText = doc.body?.innerHTML || '';
-  const bodyPlain = doc.body?.innerText || '';
+  const bodyText = doc.body ? doc.body.innerHTML : '';
+  const bodyLower = bodyText.toLowerCase();
 
-  // ── Strategy 1: Find PDF link directly next to petition text ────────
-  // OSCN docket pages have rows like:
-  // "PETITION FOR FORECLOSURE OF MORTGAGE  Document Available (#1064882509) TIFF  PDF"
-  // The PDF link href = /applications/oscn/deliverdocument.asp?documentID=1064882509
+  let petitionDocId = null;
+  let caseId = null;
 
-  const petitionKeywords = [
+  // Extract caseId from links
+  const allLinks = [...doc.querySelectorAll('a')];
+  for (const a of allLinks) {
+    const href = a.getAttribute('href') || '';
+    const caseMatch = href.match(/caseid=([0-9]+)/i);
+    if (caseMatch) { caseId = caseMatch[1]; break; }
+  }
+
+  // Priority search terms in order of preference
+  const petitionTerms = [
+    'petition for foreclosure of mortgage',
     'petition for foreclosure',
     'petition to administer estate',
     'petition for administration',
-    'petition for determination',
     'petition for probate',
-    'petition'
+    'petition',
   ];
 
-  // Find all PDF links on the page
-  const allLinks = [...doc.querySelectorAll('a')];
-  
-  // Look for a PDF link near petition text
-  for (const keyword of petitionKeywords) {
-    const keyIdx = bodyText.toLowerCase().indexOf(keyword);
-    if (keyIdx === -1) continue;
-    
-    // Get the section of HTML around the petition keyword (next 600 chars)
-    const nearby = bodyText.substring(keyIdx, keyIdx + 600);
-    
-    // Look for deliverdocument link in that section
-    const docMatch = nearby.match(/deliverdocument\.asp\?documentID=(\d+)/i);
-    if (docMatch) {
-      return `${OSCN_BASE}/applications/oscn/deliverdocument.asp?documentID=${docMatch[1]}`;
-    }
-    
-    // Look for document ID pattern (#XXXXXXXX) near petition
-    const idMatch = nearby.match(/#(\d{7,})/);
-    if (idMatch) {
-      return `${OSCN_BASE}/applications/oscn/deliverdocument.asp?documentID=${idMatch[1]}`;
-    }
-  }
-
-  // ── Strategy 2: Find first deliverdocument link on page ─────────────
-  for (const a of allLinks) {
-    const href = a.getAttribute('href') || '';
-    if (href.toLowerCase().includes('deliverdocument')) {
-      const fullUrl = href.startsWith('http') ? href : OSCN_BASE + href;
-      return fullUrl;
+  for (const term of petitionTerms) {
+    const idx = bodyLower.indexOf(term);
+    if (idx > -1) {
+      const nearby = bodyText.substring(Math.max(0, idx - 200), idx + 600);
+      
+      // Look for PDF link in nearby text
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = nearby;
+      const pdfLinks = [...tempDiv.querySelectorAll('a')];
+      for (const a of pdfLinks) {
+        const href = a.getAttribute('href') || '';
+        const m = href.match(/docid=([0-9]+)/i) || href.match(/documentID=([0-9]+)/i);
+        if (m) { petitionDocId = m[1]; break; }
+      }
+      
+      // Also check for (#DOCID) pattern
+      if (!petitionDocId) {
+        const hashMatch = nearby.match(/#([0-9]{7,})/);
+        if (hashMatch) petitionDocId = hashMatch[1];
+      }
+      
+      if (petitionDocId) break;
     }
   }
 
-  // ── Strategy 3: Find first document ID anywhere on page ─────────────
-  const firstDocMatch = bodyText.match(/deliverdocument\.asp\?documentID=(\d+)/i);
-  if (firstDocMatch) {
-    return `${OSCN_BASE}/applications/oscn/deliverdocument.asp?documentID=${firstDocMatch[1]}`;
+  // Fallback: first doc link on page
+  if (!petitionDocId) {
+    for (const a of allLinks) {
+      const href = a.getAttribute('href') || '';
+      const m = href.match(/docid=([0-9]+)/i) || href.match(/documentID=([0-9]+)/i);
+      if (m) { petitionDocId = m[1]; break; }
+    }
   }
 
-  // ── Strategy 4: Extract from (#DOCID) pattern ───────────────────────
-  const hashMatch = bodyText.match(/#(\d{9,})/);
-  if (hashMatch) {
-    return `${OSCN_BASE}/applications/oscn/deliverdocument.asp?documentID=${hashMatch[1]}`;
-  }
+  if (!petitionDocId) return null;
 
-  return null;
+  if (caseId) {
+    return `${OSCN_BASE}/applications/oscn/OnLineDocuments.aspx?caseid=${caseId}&docid=${petitionDocId}`;
+  }
+  return `${OSCN_BASE}/applications/oscn/deliverdocument.asp?documentID=${petitionDocId}`;
 }
+
 
 // ── Render table row ──────────────────────────────────────────────────────────
 
@@ -966,19 +968,45 @@ async function startHarvest() {
           log(`✓ ${c.caseNum} — ${c.style.substring(0,50)} — downloading PDF now...`, 'ok');
           
           // Download PDF immediately while session is still active
+          // Verify it is a real PDF before moving on
           try {
-            const pdfRes = await fetch(pdfUrl.replace('https://www.oscn.net', PROXY_BASE));
-            if (pdfRes.ok) {
-              const blob = await pdfRes.blob();
-              const a = document.createElement('a');
-              a.href = URL.createObjectURL(blob);
-              a.download = `${c.caseNum}-${county}.pdf`;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              log(`✓ Downloaded: ${c.caseNum}-${county}.pdf`, 'ok');
+            log(`Downloading PDF for ${c.caseNum}...`);
+            const proxyPdfUrl = pdfUrl.replace('https://www.oscn.net', PROXY_BASE);
+            const pdfRes = await fetch(proxyPdfUrl);
+            
+            if (!pdfRes.ok) {
+              log(`⚠️ PDF download failed (${pdfRes.status}) for ${c.caseNum}`, 'warn');
             } else {
-              log(`⚠️ PDF download failed for ${c.caseNum} — try manual link`, 'warn');
+              const contentType = pdfRes.headers.get('content-type') || '';
+              
+              if (contentType.includes('text/html')) {
+                // Got HTML back instead of PDF - likely session expired or CAPTCHA
+                log(`⚠️ Got HTML instead of PDF for ${c.caseNum} — session may have expired`, 'warn');
+              } else {
+                const blob = await pdfRes.blob();
+                
+                // Verify minimum PDF size (corrupt/empty PDFs are usually < 5KB)
+                if (blob.size < 5000) {
+                  log(`⚠️ PDF too small (${blob.size} bytes) for ${c.caseNum} — may be corrupt`, 'warn');
+                } else {
+                  // Verify it starts with PDF header
+                  const header = await blob.slice(0, 4).text();
+                  if (!header.startsWith('%PDF')) {
+                    log(`⚠️ File is not a valid PDF for ${c.caseNum}`, 'warn');
+                  } else {
+                    // Valid PDF - download it
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${c.caseNum}-${county}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    log(`✅ Downloaded: ${c.caseNum}-${county}.pdf (${Math.round(blob.size/1024)}KB)`, 'ok');
+                    // Small pause after download before next request
+                    await sleep(1500);
+                  }
+                }
+              }
             }
           } catch(dlErr) {
             log(`⚠️ PDF download error ${c.caseNum}: ${dlErr.message}`, 'warn');
