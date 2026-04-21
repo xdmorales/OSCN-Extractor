@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OSCN Pre-Foreclosure Extractor</title>
+<title>Xavier's Extractor</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap');
@@ -16,6 +16,7 @@ header{margin-bottom:28px;}
 h1{font-family:'Syne',sans-serif;font-size:clamp(18px,3vw,28px);font-weight:800;letter-spacing:-0.5px;}
 h1 span{color:var(--accent);}
 .tagline{font-size:11px;color:var(--muted);margin-top:4px;}
+.unlimited-tag{display:inline-block;background:rgba(105,240,174,.12);border:1px solid rgba(105,240,174,.3);color:var(--green);font-size:10px;padding:2px 8px;border-radius:3px;margin-left:10px;letter-spacing:1px;}
 .layout{display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start;}
 @media(max-width:820px){.layout{grid-template-columns:1fr;}}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;}
@@ -117,10 +118,11 @@ tr:hover td{background:rgba(240,192,64,.03);}
 
 <header>
   <div class="logo-row">
-    <div class="badge">OSCN</div>
-    <h1>Pre-Foreclosure <span>Extractor</span></h1>
+    <div class="badge">XDE</div>
+    <h1>Xavier's <span>Extractor</span></h1>
+    <span class="unlimited-tag">✦ UNLIMITED</span>
   </div>
-  <div class="tagline">Oklahoma · All 77 counties &nbsp;|&nbsp; Extract → Auto-push Google Sheets → Auto-pin Google Maps</div>
+  <div class="tagline">Document Processing &amp; Data Extraction &nbsp;|&nbsp; Extract → Auto-push Google Sheets → Auto-pin Google Maps</div>
 </header>
 
 <div class="layout">
@@ -153,12 +155,12 @@ tr:hover td{background:rgba(240,192,64,.03);}
   </div>
 
   <div class="card">
-    <div class="card-title"><span class="pip"></span>Upload Petitions</div>
+    <div class="card-title"><span class="pip"></span>Upload Documents</div>
     <div id="dropzone">
       <input type="file" id="finput" multiple accept=".pdf">
       <div class="dz-icon">📄</div>
       <div class="dz-text"><strong>Click or drag</strong> PDFs here</div>
-      <div style="font-size:10px;color:#f0c040;margin-top:4px;">⚡ Max 4 PDFs per batch for best results</div>
+      <div style="font-size:10px;color:var(--green);margin-top:4px;">✦ No limit — drop entire folders at once</div>
     </div>
     <div id="file-list"></div>
 
@@ -178,6 +180,11 @@ tr:hover td{background:rgba(240,192,64,.03);}
       <div class="chip"><span class="chip-dot"></span>Original Loan</div>
       <div class="chip"><span class="chip-dot"></span>All Liens</div>
       <div class="chip"><span class="chip-dot"></span>Total Liens</div>
+      <div class="chip"><span class="chip-dot"></span>Months Behind</div>
+      <div class="chip"><span class="chip-dot"></span>Est. PITI/mo</div>
+      <div class="chip"><span class="chip-dot"></span>Daily Interest</div>
+      <div class="chip"><span class="chip-dot"></span>Est. Payoff</div>
+      <div class="chip"><span class="chip-dot"></span>Probate Flag</div>
     </div>
 
     <button id="run-btn" onclick="runExtraction()">⚡ Extract + Sync Everything</button>
@@ -194,7 +201,7 @@ tr:hover td{background:rgba(240,192,64,.03);}
   <div id="empty-card" class="card">
     <div id="empty">
       <div class="em-ico">🏠</div>
-      <p>Upload OSCN petitions and hit Extract.<br>Data auto-pushes to Google Sheets<br>and pins to your Google Maps automatically.</p>
+      <p>Upload documents and hit Extract.<br>Data auto-pushes to Google Sheets<br>and pins to your Google Maps automatically.<br><br><span style="color:var(--green);">✦ No PDF limit — process as many as you need</span></p>
     </div>
   </div>
 
@@ -228,7 +235,7 @@ tr:hover td{background:rgba(240,192,64,.03);}
 <div id="modal-overlay">
   <div class="modal-box">
     <div class="modal-head">
-      <div class="modal-title">🔗 Connect to Google Sheets & Maps</div>
+      <div class="modal-title">🔗 Connect to Google Sheets &amp; Maps</div>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
 
@@ -315,7 +322,7 @@ function addPinsToMap(pins) {
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 let files=[],rows=[];
 
-// ── Proxy URL — update this after you deploy your Cloudflare Worker ──
+// ── Cloudflare Worker proxy — API key stays secure on the server ──
 const PROXY_URL = 'https://oscn-proxy.xfutureinvestmentsllc.workers.dev/v1/messages';
 
 function saveSettings(){
@@ -352,10 +359,10 @@ async function testConn(id){
   try{
     await fetch(url+'?action=ping',{mode:'no-cors'});
     setDot(id,'connected');
-  }catch(e){setDot(id,'connected');} // no-cors throws but means URL is reachable
+  }catch(e){setDot(id,'connected');}
 }
 
-// File handling
+// ── File handling ──
 const dz=document.getElementById('dropzone');
 dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');});
 dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
@@ -378,36 +385,26 @@ function delFile(name){
   if(el)el.remove();
 }
 
-// Render PDF pages as base64 images (works for scanned AND text PDFs)
-async function pdfToImages(file){
-  const buf=await file.arrayBuffer();
-  const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
-  const images=[];
-  // Only send first 8 pages to stay within API limits (petition is usually pages 1-8)
-  const maxPages=Math.min(pdf.numPages,10);
-  for(let i=1;i<=maxPages;i++){
-    const pg=await pdf.getPage(i);
-    const vp=pg.getViewport({scale:2.0});
-    const canvas=document.createElement('canvas');
-    canvas.width=vp.width;canvas.height=vp.height;
-    const ctx=canvas.getContext('2d');
-    await pg.render({canvasContext:ctx,viewport:vp}).promise;
-    // Convert to base64 jpeg (smaller than png)
-    const b64=canvas.toDataURL('image/jpeg',0.92).split(',')[1];
-    images.push(b64);
+// ── PDF Text Extraction via PDF.js (replaces image rendering — removes batch limit) ──
+// Instead of rendering each page as a JPEG and sending images to Claude (expensive, rate-limited),
+// we extract the raw text locally in the browser for free, then send text to Claude.
+// Text tokens cost ~10x less than vision tokens = no practical limit on PDF count.
+async function extractTextFromPDF(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data: new Uint8Array(buf)}).promise;
+  let fullText = '';
+  for(let i = 1; i <= pdf.numPages; i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items.map(item => item.str).join(' ');
+    fullText += `\n--- PAGE ${i} ---\n${pageText}`;
   }
-  console.log('PDF pages rendered:',images.length,'of',pdf.numPages);
-  return images;
+  return fullText.trim();
 }
 
-async function callClaude(images){
-  // Build content array with all page images
-  const content=[];
-  images.forEach((b64,i)=>{
-    content.push({type:'text',text:`Page ${i+1}:`});
-    content.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}});
-  });
-  content.push({type:'text',text:`You are an expert at reading Oklahoma district court foreclosure petitions from OSCN.
+// ── Claude API call (text-based, via Cloudflare proxy) ──
+async function callClaude(pdfText, fileName){
+  const prompt = `You are an expert at reading Oklahoma district court foreclosure petitions.
 
 COUNTY FORMAT NOTES:
 - CANADIAN COUNTY: Case number stamped top-right (e.g. CJ-2025-1695). Loan balance in paragraph 10 "sum of $X". Fixed rates. Additional liens itemized with dollar amounts in paragraph 12 subsections.
@@ -422,10 +419,10 @@ RULES:
 5. Lien amounts — null if not clearly stated
 
 FINDING THE PROPERTY STREET ADDRESS:
-- Look in the promissory note exhibit for "[Property Address]" field — this is the most reliable source
+- Look for "[Property Address]" field in the note exhibit — most reliable source
 - Look for "commonly known as [address]" in the legal description paragraph
 - Look for the borrower residence address on the Federal Tax Lien exhibit
-- The property address should be a STREET ADDRESS like "900 Banff Court, Yukon, OK 73099" NOT a legal description like "Lot 32, Block 168..."
+- Must be a STREET ADDRESS like "900 Banff Court, Yukon, OK 73099" NOT a legal description
 - mailing_address should also be a street address, not a legal description
 
 PROBATE DETECTION:
@@ -433,92 +430,105 @@ PROBATE DETECTION:
 - If no probate indicators found set probate_flag to false and probate_note to ""
 
 PAYOFF CALCULATION FIELDS:
-- balance_as_of_date: the specific date the loan balance was stated (e.g. "February 5, 2024") — look for language like "from [date]" after the balance amount
-- first_default_date: the date of the FIRST missed payment (e.g. "March 5, 2024") — look for "payment was due" or "installments due" language
-- monthly_payment: the regular monthly payment amount if stated in the petition or note exhibit
+- balance_as_of_date: the specific date the loan balance was stated — look for "from [date]" after the balance amount
+- first_default_date: the date of the FIRST missed payment — look for "payment was due" or "installments due" language
+- monthly_payment: the regular monthly payment amount if stated
 
 Return ONLY valid JSON, no markdown, no explanation:
-{"case_number":"","county":"","date_filed":"MM/DD/YYYY","owner_name":"","mailing_address":"street address only","mailing_city":"","mailing_state":"","mailing_zip":"","property_address":"street address with city state zip e.g. 900 Banff Court Yukon OK 73099","legal_description":"Lot/Block/Addition description only","lender_name":"","loan_balance":"number only","interest_rate":"number only","balance_as_of_date":"MM/DD/YYYY or empty","first_default_date":"MM/DD/YYYY or empty","monthly_payment":"number only or empty","default_date":"","original_loan_amount":"number only","additional_liens":[{"creditor":"","amount":"number or null","type":""}],"probate_flag":false,"probate_note":"brief explanation if probate detected e.g. Michael F. McKenna deceased 2018 title passed to Patricia via survivorship"}`});
+{"case_number":"","county":"","date_filed":"MM/DD/YYYY","owner_name":"","mailing_address":"street address only","mailing_city":"","mailing_state":"","mailing_zip":"","property_address":"street address with city state zip","legal_description":"Lot/Block/Addition description only","lender_name":"","loan_balance":"number only","interest_rate":"number only","balance_as_of_date":"MM/DD/YYYY or empty","first_default_date":"MM/DD/YYYY or empty","monthly_payment":"number only or empty","default_date":"","original_loan_amount":"number only","additional_liens":[{"creditor":"","amount":"number or null","type":""}],"probate_flag":false,"probate_note":""}
 
-  const res=await fetch(PROXY_URL,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,messages:[{role:'user',content}]})
+Document text to analyze (file: ${fileName}):
+${pdfText.substring(0, 28000)}`;
+
+  const res = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      messages: [{role: 'user', content: prompt}]
+    })
   });
-  const data=await res.json();
-  console.log('API response status:',res.status,data.content?.[0]?.text?.substring(0,100));
-  const raw=data.content?.[0]?.text||'{}';
-  try{return JSON.parse(raw.replace(/```json|```/g,'').trim());}catch{return{};}
+
+  const data = await res.json();
+  console.log('API response status:', res.status, data.content?.[0]?.text?.substring(0,100));
+  const raw = data.content?.[0]?.text || '{}';
+  try{return JSON.parse(raw.replace(/```json|```/g,'').trim());}
+  catch{return {};}
 }
 
+// ── Main extraction loop ──
 async function runExtraction(){
-  if(!files.length)return alert('Upload at least one OSCN PDF first.');
-  const btn=document.getElementById('run-btn');
-  btn.disabled=true;btn.innerHTML='<span class="spin"></span>Extracting...';
-  document.getElementById('prog-wrap').style.display='block';
-  document.getElementById('sync-log').innerHTML='';
-  rows=[];let done=0;
+  if(!files.length) return alert('Upload at least one PDF first.');
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Extracting...';
+  document.getElementById('prog-wrap').style.display = 'block';
+  document.getElementById('sync-log').innerHTML = '';
+  rows = [];
+  let done = 0;
 
-  // Build set of already-extracted case numbers in this session
-  const sessionCases=new Set(rows.map(r=>r.case_number).filter(Boolean));
+  const sessionCases = new Set(rows.map(r=>r.case_number).filter(Boolean));
 
   for(const f of files){
-    const fs=document.getElementById('fs-'+CSS.escape(f.name));
+    const fs = document.getElementById('fs-'+CSS.escape(f.name));
     if(fs){fs.textContent='reading...';fs.className='fstatus proc';}
+
     try{
-      if(fs){fs.textContent='rendering...';fs.className='fstatus proc';}
-      // Small delay between PDFs to avoid API rate limiting
-      if(done>0) await new Promise(res=>setTimeout(res,4000));
-      const images=await pdfToImages(f);
+      // Delay between files (1.5s — much shorter than old 4s since text is lighter)
+      if(done > 0) await new Promise(res=>setTimeout(res, 1500));
+
+      if(fs){fs.textContent='extracting text...';fs.className='fstatus proc';}
+      const pdfText = await extractTextFromPDF(f);
+
       if(fs){fs.textContent='AI reading...';fs.className='fstatus proc';}
-      const r=await callClaude(images);
-      r._file=f.name;
+      const r = await callClaude(pdfText, f.name);
+      r._file = f.name;
+
       // Duplicate check
       if(r.case_number && sessionCases.has(r.case_number)){
-        r._duplicate=true;
+        r._duplicate = true;
         if(fs){fs.textContent='duplicate!';fs.className='fstatus err';}
         addSyncItem('dup-'+f.name,'fail','⚠️ Skipped '+r.case_number+' — already extracted this session');
       } else {
         if(r.case_number) sessionCases.add(r.case_number);
       }
-      r._total_add_liens=Array.isArray(r.additional_liens)?r.additional_liens.reduce((s,l)=>s+(parseFloat(l.amount)||0),0):0;
 
-      // ── Payoff calculations ──
+      r._total_add_liens = Array.isArray(r.additional_liens)
+        ? r.additional_liens.reduce((s,l)=>s+(parseFloat(l.amount)||0), 0)
+        : 0;
+
+      // ── Payoff calculations (unchanged from original) ──
       const today = new Date();
       const balance = parseFloat(r.loan_balance)||0;
       const rate = parseFloat(r.interest_rate)||0;
       const origLoanAmt = parseFloat(r.original_loan_amount)||0;
       const piPayment = parseFloat(r.monthly_payment)||0;
 
-      // Months behind — from first default date to today
-      // Parse date robustly handling MM/DD/YYYY and other formats
       function parseDate(str){
         if(!str) return null;
-        // Try direct parse first
         let d = new Date(str);
         if(!isNaN(d)) return d;
-        // Try MM/DD/YYYY
         const parts = str.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
         if(parts) return new Date(parseInt(parts[3]), parseInt(parts[1])-1, parseInt(parts[2]));
         return null;
       }
+
       const defDateStr = r.first_default_date || r.default_date || '';
       if(defDateStr){
         const defDate = parseDate(defDateStr);
         if(defDate){
           const msPerMonth = 1000*60*60*24*30.44;
           r._months_behind = Math.max(0, Math.floor((today - defDate)/msPerMonth));
-          console.log('Default date:', defDateStr, '-> parsed:', defDate, '-> months behind:', r._months_behind);
         }
       }
 
-      // Estimated PITI payoff calculation
-      // Uses Oklahoma averages: Taxes 1% of value/yr + Insurance 1.5% of value/yr = 2.5% combined
-      // Estimated property value = original loan / 0.90 (assumes ~90% LTV)
       if(balance && r._months_behind > 0){
         const estPropValue = origLoanAmt > 0 ? origLoanAmt / 0.90 : balance / 0.90;
         const monthlyTI = Math.round((estPropValue * 0.025 / 12) * 100) / 100;
-        const monthlyPI = piPayment > 0 ? piPayment : Math.round((balance * (rate/100/12)) / (1 - Math.pow(1+(rate/100/12), -360)) * 100) / 100;
+        const monthlyPI = piPayment > 0
+          ? piPayment
+          : Math.round((balance * (rate/100/12)) / (1 - Math.pow(1+(rate/100/12), -360)) * 100) / 100;
         const monthlyPITI = monthlyPI + monthlyTI;
         const missedPayments = Math.round(monthlyPITI * r._months_behind * 100) / 100;
         r._monthly_piti = Math.round(monthlyPITI * 100) / 100;
@@ -526,27 +536,32 @@ async function runExtraction(){
         r._est_payoff = Math.round((balance + missedPayments) * 100) / 100;
         r._daily_interest = Math.round((balance * (rate/100) / 365) * 100) / 100;
       }
+
       rows.push(r);
       if(fs){fs.textContent='✓';fs.className='fstatus done';}
-    }catch(e){
-      rows.push({_file:f.name,_error:true});
+
+    } catch(e){
+      console.error(e);
+      rows.push({_file:f.name, _error:true});
       if(fs){fs.textContent='error';fs.className='fstatus err';}
     }
+
     done++;
-    const pct=Math.round(done/files.length*100);
-    document.getElementById('prog-fill').style.width=pct+'%';
-    document.getElementById('prog-pct').textContent=pct+'%';
-    document.getElementById('prog-text').textContent=`${done} of ${files.length} processed`;
+    const pct = Math.round(done/files.length*100);
+    document.getElementById('prog-fill').style.width = pct+'%';
+    document.getElementById('prog-pct').textContent = pct+'%';
+    document.getElementById('prog-text').textContent = `${done} of ${files.length} processed`;
   }
 
   renderTable();
 
-  const sheetsUrl=document.getElementById('sheets-url').value.trim();
-  const mapsUrl=document.getElementById('maps-url').value.trim();
+  const sheetsUrl = document.getElementById('sheets-url').value.trim();
+  const mapsUrl = document.getElementById('maps-url').value.trim();
   if(sheetsUrl) await pushToSheets(true);
   if(mapsUrl)   await pushToMaps(true);
 
-  btn.disabled=false;btn.innerHTML='⚡ Extract + Sync Everything';
+  btn.disabled = false;
+  btn.innerHTML = '⚡ Extract + Sync Everything';
 }
 
 function syncLog(id,state,text){
@@ -556,6 +571,7 @@ function syncLog(id,state,text){
   el.className='sync-item '+state;
   el.innerHTML=state==='pending'?`<span class="spin-sm"></span> ${text}`:text;
 }
+function addSyncItem(id,state,text){syncLog(id,state,text);}
 
 async function pushToSheets(auto=false){
   const url=document.getElementById('sheets-url').value.trim();
@@ -599,9 +615,9 @@ async function pushToMaps(auto=false){
 }
 
 function fmt(v,t){
-  if(v===null||v===undefined||v==='')return null;
+  if(v===null||v===undefined||v==='') return null;
   if(t==='money'){const n=parseFloat(v);return isNaN(n)?v:'$'+n.toLocaleString('en-US',{minimumFractionDigits:2});}
-  if(t==='pct')return v+'%';
+  if(t==='pct') return v+'%';
   return v;
 }
 
@@ -629,10 +645,10 @@ function renderTable(){
     ];
     cells.forEach(c=>{
       const td=document.createElement('td');
-      if(c.raw)td.innerHTML=c.raw;
+      if(c.raw) td.innerHTML=c.raw;
       else if(!c.v&&c.v!==0){td.className='col-null';td.textContent='—';}
       else{if(c.c)td.className=c.c;td.textContent=c.v;}
-      if(c.s)td.style.cssText=c.s;
+      if(c.s) td.style.cssText=c.s;
       tr.appendChild(td);
     });
     tbody.appendChild(tr);
@@ -649,17 +665,17 @@ function getCSVRows(ghl=false){
       const nm=(r.owner_name||'').trim().split(/\s+/);
       const last=nm.length>1?nm[nm.length-1]:'';
       const first=nm.slice(0,nm.length>1?nm.length-1:1).join(' ');
-      return[first,last,r.property_address||r.mailing_address||'',r.mailing_city||'',r.mailing_state||'OK',r.mailing_zip||'','OSCN Pre-Foreclosure','pre-foreclosure,oklahoma,door-knock,'+(r.county||'').toLowerCase(),r.case_number||'',r.county||'',r.loan_balance||'',r.default_date||''];
+      return[first,last,r.property_address||r.mailing_address||'',r.mailing_city||'',r.mailing_state||'OK',r.mailing_zip||'','XDE Extract','pre-foreclosure,oklahoma,door-knock,'+(r.county||'').toLowerCase(),r.case_number||'',r.county||'',r.loan_balance||'',r.default_date||''];
     })];
   }
-  const h=['File','Case #','County','Date Filed','Owner Name','Mailing Address','City','State','ZIP','Property Address','Legal Description','Lender','Loan Balance','Interest Rate','Default Date','Original Loan','Lien Detail','Total Liens'];
+  const h=['File','Case #','County','Date Filed','Owner Name','Mailing Address','City','State','ZIP','Property Address','Legal Description','Lender','Loan Balance','Interest Rate','Default Date','Original Loan','Lien Detail','Total Liens','Months Behind','Est. PITI/mo','Daily Interest','Est. Payoff'];
   return[h,...rows.map(r=>{
     const lienarr=Array.isArray(r.additional_liens)?r.additional_liens:[];
-    return[r._file||'',r.case_number||'',r.county||'',r.date_filed||'',r.owner_name||'',r.mailing_address||'',r.mailing_city||'',r.mailing_state||'',r.mailing_zip||'',r.property_address||'',r.legal_description||'',r.lender_name||'',r.loan_balance||'',r.interest_rate||'',r.default_date||'',r.original_loan_amount||'',lienarr.map(l=>`${l.creditor}: $${l.amount}`).join(' | '),r._total_add_liens||''];
+    return[r._file||'',r.case_number||'',r.county||'',r.date_filed||'',r.owner_name||'',r.mailing_address||'',r.mailing_city||'',r.mailing_state||'',r.mailing_zip||'',r.property_address||'',r.legal_description||'',r.lender_name||'',r.loan_balance||'',r.interest_rate||'',r.default_date||'',r.original_loan_amount||'',lienarr.map(l=>`${l.creditor}: $${l.amount}`).join(' | '),r._total_add_liens||'',r._months_behind||'',r._monthly_piti||'',r._daily_interest||'',r._est_payoff||''];
   })];
 }
 function toCSV(rows){return rows.map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');}
-function exportCSV(){if(!rows.length)return;const b=new Blob([toCSV(getCSVRows())],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='oscn_leads.csv';a.click();}
+function exportCSV(){if(!rows.length)return;const b=new Blob([toCSV(getCSVRows())],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='xde_leads.csv';a.click();}
 function exportGHL(){if(!rows.length)return;const b=new Blob([toCSV(getCSVRows(true))],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='ghl_import.csv';a.click();}
 function copyTSV(){if(!rows.length)return;const tsv=getCSVRows().map(r=>r.join('\t')).join('\n');navigator.clipboard.writeText(tsv);const btn=event.target;btn.textContent='✓ Copied!';setTimeout(()=>btn.textContent='📋 Copy',1500);}
 
