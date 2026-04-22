@@ -505,6 +505,7 @@ async function runExtraction(){
       const pdfText = await extractTextFromPDF(f);
 
       if(fs){fs.textContent='AI reading...';fs.className='fstatus proc';}
+      console.log('PDF text sample for', f.name, ':', pdfText.substring(0, 400));
       const r = await callClaude(pdfText, f.name);
       r._file = f.name;
 
