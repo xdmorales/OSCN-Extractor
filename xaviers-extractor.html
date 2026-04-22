@@ -219,10 +219,10 @@ tr:hover td{background:rgba(240,192,64,.03);}
     <div class="tscroll">
       <table>
         <thead><tr>
-          <th>File</th><th>Case #</th><th>County</th><th>Filed</th>
+          <th>File</th><th>Type</th><th>Case #</th><th>County</th><th>Filed</th>
           <th>Owner</th><th>Mailing</th><th>Property</th><th>Legal</th>
           <th>Lender</th><th>Loan Bal</th><th>Rate</th><th>Default</th>
-          <th>Orig Loan</th><th>Liens</th><th>Total Liens</th><th>Months Behind</th><th>Est. PITI/mo</th><th>Daily Interest</th><th>Est. Payoff Today</th><th>Probate</th>
+          <th>Orig Loan</th><th>Liens</th><th>Total Liens</th><th>Months Behind</th><th>Est. PITI/mo</th><th>Daily Interest</th><th>Est. Payoff Today</th><th>Probate / Estate</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -401,40 +401,62 @@ async function extractTextFromPDF(file){
 
 // ── Claude API call (text-based, via Cloudflare proxy) ──
 async function callClaude(pdfText, fileName){
-  const prompt = `You are an expert at reading Oklahoma district court foreclosure petitions.
+  const prompt = `⚠️ CRITICAL: Extract ONLY information explicitly written in the document text below. NEVER use example values, placeholder data, or any information from these instructions themselves. If a field is not found in the document, return "" or null.
 
-COUNTY FORMAT NOTES:
-- CANADIAN COUNTY: Case number stamped top-right (e.g. CJ-2025-1695). Loan balance in paragraph 10 "sum of $X". Fixed rates. Additional liens itemized with dollar amounts in paragraph 12 subsections.
-- OKLAHOMA COUNTY: Case number handwritten top-right. Loan balance mid-paragraph "sum of $X". May have ADJUSTABLE rates — capture the CURRENT/most recent rate. Lien holders named as defendants but amounts may not be listed — use null. Property address in legal description as "commonly known as [address]". Owner may have inherited — use CURRENT living defendant.
-- OTHER COUNTIES: Similar variations — use context clues.
+STEP 1 — IDENTIFY DOCUMENT TYPE:
+Classify this document as one of:
+- "foreclosure" — A petition/complaint filed by a lender to foreclose a mortgage lien
+- "probate" — A probate petition, inventory, letters of administration, heirship determination, or estate proceeding with NO foreclosure
+- "both" — Contains both: a foreclosure involving a deceased borrower/estate, OR a probate that also lists mortgage debt on real property
+
+STEP 2 — EXTRACT FIELDS:
+
+═══ FOR FORECLOSURE OR BOTH ═══
+
+WHERE TO FIND EACH FIELD in Oklahoma District Court foreclosure petitions:
+
+case_number → Stamped or handwritten top-right of page 1. Format is CJ-YYYY-NNNN. Read it directly — do not guess.
+county → Read from the header: "IN THE DISTRICT COURT OF [X] COUNTY"
+date_filed → The file stamp date on page 1 (e.g. "SEP 20 2024" → "09/20/2024")
+owner_name → The DEFENDANT homeowner(s) only — never the plaintiff bank. Look at the defendants section before "PETITION".
+mailing_address / mailing_city / mailing_state / mailing_zip → Look for "CERTIFICATE OF MAILING" near the END of the petition. The homeowner's mailing address is listed there first. Split into street, city, state, zip.
+property_address → Look for an explicit "PROPERTY ADDRESS:" label in the legal description paragraph or in Exhibit "1" (the Note). Must be a real street address, not a legal description.
+legal_description → The Lot/Block/Addition/Section text in paragraph 2 or 3 of the petition.
+lender_name → The PLAINTIFF — the bank or servicer filing the lawsuit.
+loan_balance → The current unpaid principal balance stated as due. Look for "principal sum of $X" or "due the sum of $X" in the body or WHEREFORE paragraph. Numbers only, no $ sign.
+interest_rate → From the Note exhibit (Exhibit "1" or "A"): "at the rate of X percent" or "yearly rate of X%". For ARM loans use the initial rate shown. Numbers only.
+balance_as_of_date → The date stated after the balance amount: "plus interest from and after [DATE]" → that date in MM/DD/YYYY.
+first_default_date → "monthly payment due for [DATE] and thereafter has not been made" → that date in MM/DD/YYYY.
+monthly_payment → From the Note exhibit: "Each monthly payment...will be in the amount of $X". Numbers only.
+original_loan_amount → From the Note exhibit: the original principal sum borrowed. Numbers only.
+additional_liens → Other defendants who hold junior liens. List each creditor name. Set amount to null unless an explicit dollar figure is stated for that lien in the document.
 
 RULES:
-1. Owner = DEFENDANT homeowner, not the bank
-2. Deceased original borrower — use current living defendant
-3. Adjustable rate — use most recent rate
-4. Property address — look for "commonly known as"
-5. Lien amounts — null if not clearly stated
+1. owner_name = defendant homeowner(s) ONLY — never the plaintiff/lender
+2. If deceased borrower, use the CURRENT living defendant as owner
+3. mailing_address = from Certificate of Mailing section, NOT the property address
+4. property_address = explicit street address only — never a legal description
+5. lien amounts = null unless a specific dollar amount is explicitly written for that lien
+6. For ARM/adjustable loans: capture the initial interest rate from the Note
+7. probate_flag = true if petition mentions deceased borrower, estate, intestate, heir, executor, or quitclaim from deceased
 
-FINDING THE PROPERTY STREET ADDRESS:
-- Look for "[Property Address]" field in the note exhibit — most reliable source
-- Look for "commonly known as [address]" in the legal description paragraph
-- Look for the borrower residence address on the Federal Tax Lien exhibit
-- Must be a STREET ADDRESS like "900 Banff Court, Yukon, OK 73099" NOT a legal description
-- mailing_address should also be a street address, not a legal description
+═══ FOR PROBATE OR BOTH ═══
 
-PROBATE DETECTION:
-- If the petition mentions a deceased borrower, estate, intestate, probate, heir, executor, or title passing via quit claim deed from a deceased person — set probate_flag to true and note who died and their relationship to the current owner
-- If no probate indicators found set probate_flag to false and probate_note to ""
+deceased_name → Full legal name of the person who died
+date_of_death → Date of death in MM/DD/YYYY if stated
+probate_type → "testate" (had a will), "intestate" (no will), or "heirship" (determination of heirs action)
+real_estate_found → true if ANY real property is listed anywhere in the document (inventory, petition, exhibits), false if none
+real_estate_description → Full address and/or legal description of any real property found in the estate
+life_estate_flag → true if the deceased held a LIFE ESTATE interest in property. Look for: "life estate", "life tenant", "remainder interest", "retained a life estate"
+life_estate_note → Describe the life estate: who held it, what property, who gets remainder
+mortgage_on_estate_property → true if any mortgage, deed of trust, or lien is listed as a debt against estate real property
+mortgage_detail → Lender name and outstanding balance if a mortgage exists on estate real property
+heirs → Array of heirs/beneficiaries named in the document with their relationship to the deceased
 
-PAYOFF CALCULATION FIELDS:
-- balance_as_of_date: the specific date the loan balance was stated — look for "from [date]" after the balance amount
-- first_default_date: the date of the FIRST missed payment — look for "payment was due" or "installments due" language
-- monthly_payment: the regular monthly payment amount if stated
+Return ONLY valid JSON — no markdown, no explanation, no code fences:
+{"doc_type":"foreclosure","case_number":"","county":"","date_filed":"","owner_name":"","mailing_address":"","mailing_city":"","mailing_state":"","mailing_zip":"","property_address":"","legal_description":"","lender_name":"","loan_balance":"","interest_rate":"","balance_as_of_date":"","first_default_date":"","default_date":"","monthly_payment":"","original_loan_amount":"","additional_liens":[{"creditor":"","amount":null,"type":""}],"probate_flag":false,"probate_note":"","deceased_name":"","date_of_death":"","probate_type":"","real_estate_found":false,"real_estate_description":"","life_estate_flag":false,"life_estate_note":"","mortgage_on_estate_property":false,"mortgage_detail":"","heirs":[{"name":"","relationship":""}]}
 
-Return ONLY valid JSON, no markdown, no explanation:
-{"case_number":"","county":"","date_filed":"MM/DD/YYYY","owner_name":"","mailing_address":"street address only","mailing_city":"","mailing_state":"","mailing_zip":"","property_address":"street address with city state zip","legal_description":"Lot/Block/Addition description only","lender_name":"","loan_balance":"number only","interest_rate":"number only","balance_as_of_date":"MM/DD/YYYY or empty","first_default_date":"MM/DD/YYYY or empty","monthly_payment":"number only or empty","default_date":"","original_loan_amount":"number only","additional_liens":[{"creditor":"","amount":"number or null","type":""}],"probate_flag":false,"probate_note":""}
-
-Document text to analyze (file: ${fileName}):
+Document text (file: ${fileName}):
 ${pdfText.substring(0, 28000)}`;
 
   const res = await fetch(PROXY_URL, {
@@ -578,19 +600,30 @@ async function pushToSheets(auto=false){
   if(!url){if(!auto)alert('Add your Apps Script URL first.');return;}
   syncLog('sl-sheets','pending','📊 Pushing to Google Sheets...');
   const payload=rows.filter(r=>!r._error&&!r._duplicate).map(r=>({
-    fileName:r._file||'',caseNumber:r.case_number||'',county:r.county||'',dateFiled:r.date_filed||'',
+    fileName:r._file||'',docType:r.doc_type||'foreclosure',
+    caseNumber:r.case_number||'',county:r.county||'',dateFiled:r.date_filed||'',
     ownerName:r.owner_name||'',mailingAddress:r.mailing_address||'',city:r.mailing_city||'',
     state:r.mailing_state||'',zip:r.mailing_zip||'',propertyAddress:r.property_address||'',
     legalDescription:r.legal_description||'',lender:r.lender_name||'',loanBalance:r.loan_balance||'',
     interestRate:r.interest_rate||'',defaultDate:r.default_date||'',originalLoan:r.original_loan_amount||'',
     lienDetail:Array.isArray(r.additional_liens)?r.additional_liens.map(l=>`${l.creditor}: ${l.amount?'$'+l.amount:'undisclosed'}`).join(' | '):'',
     totalLiens:r._total_add_liens||'',
-    probateFlag:r.probate_flag?'YES':'',
+    probateFlag:(r.probate_flag||(r.doc_type==='probate'||r.doc_type==='both'))?'YES':'',
     probateNote:r.probate_note||'',
     monthsBehind:r._months_behind||'',
     monthlyPITI:r._monthly_piti||'',
     dailyInterest:r._daily_interest||'',
-    estPayoff:r._est_payoff||''
+    estPayoff:r._est_payoff||'',
+    deceasedName:r.deceased_name||'',
+    dateOfDeath:r.date_of_death||'',
+    probateType:r.probate_type||'',
+    realEstateFound:r.real_estate_found?'YES':'',
+    realEstateDescription:r.real_estate_description||'',
+    lifeEstateFlag:r.life_estate_flag?'YES':'',
+    lifeEstateNote:r.life_estate_note||'',
+    mortgageOnEstate:r.mortgage_on_estate_property?'YES':'',
+    mortgageDetail:r.mortgage_detail||'',
+    heirs:Array.isArray(r.heirs)?r.heirs.filter(h=>h.name).map(h=>h.name+(h.relationship?` (${h.relationship})`:'') ).join(', '):''
   }));
   try{
     await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'addLeads',leads:payload})});
@@ -625,12 +658,42 @@ function renderTable(){
   const tbody=document.getElementById('tbody');tbody.innerHTML='';
   rows.forEach(r=>{
     const tr=document.createElement('tr');
+    const dt=r.doc_type||'foreclosure';
     const lienarr=Array.isArray(r.additional_liens)?r.additional_liens:[];
     const lienHTML=lienarr.length
       ?'<div class="lien-list">'+lienarr.map(l=>`<div class="lien-tag">${l.creditor||'?'}: ${fmt(l.amount,'money')||'undisclosed'}</div>`).join('')+'</div>'
       :'<span class="col-null">None</span>';
+
+    const typeColors={'foreclosure':'var(--accent2)','probate':'#ffa500','both':'var(--red)'};
+    const typeLabels={'foreclosure':'⚖ FORECLOSURE','probate':'📜 PROBATE','both':'⚖📜 BOTH'};
+    const typeBadge=`<div style="background:rgba(255,255,255,.06);border:1px solid ${typeColors[dt]||'var(--accent2)'};border-radius:4px;padding:2px 6px;font-size:9px;color:${typeColors[dt]||'var(--accent2)'};white-space:nowrap;">${typeLabels[dt]||dt.toUpperCase()}</div>`;
+
+    // Probate / Estate column content
+    let probateHTML='<span class="col-null">—</span>';
+    if(dt==='probate'||dt==='both'){
+      const lines=[];
+      if(r.deceased_name) lines.push(`<b style="color:#ffa500;">Deceased:</b> ${r.deceased_name}`);
+      if(r.date_of_death) lines.push(`Died: ${r.date_of_death}`);
+      if(r.probate_type) lines.push(`Type: ${r.probate_type}`);
+      if(r.real_estate_found) lines.push(`<span style="color:var(--green);">✓ Real estate in estate</span>`);
+      if(r.real_estate_description) lines.push(`<span style="font-size:9px;color:#aaa;">${r.real_estate_description}</span>`);
+      if(r.life_estate_flag) lines.push(`<span style="color:#ff9800;">⚠ Life estate detected</span>`);
+      if(r.life_estate_note) lines.push(`<span style="font-size:9px;color:#aaa;">${r.life_estate_note}</span>`);
+      if(r.mortgage_on_estate_property) lines.push(`<span style="color:var(--red);">⚠ Mortgage on estate property</span>`);
+      if(r.mortgage_detail) lines.push(`<span style="font-size:9px;color:#aaa;">${r.mortgage_detail}</span>`);
+      if(Array.isArray(r.heirs)&&r.heirs.length&&r.heirs[0].name){
+        lines.push(`<b style="color:#aaa;">Heirs:</b> ${r.heirs.map(h=>h.name+(h.relationship?` (${h.relationship})`:'') ).join(', ')}`);
+      }
+      if(dt==='both'&&r.probate_flag) lines.push(`<span style="font-size:9px;color:#aaa;">${r.probate_note||''}</span>`);
+      probateHTML=lines.length?`<div style="font-size:10px;line-height:1.7;">${lines.join('<br>')}</div>`:'<span class="col-null">—</span>';
+    } else if(r.probate_flag){
+      probateHTML=`<div style="background:rgba(255,165,0,.15);border:1px solid rgba(255,165,0,.4);border-radius:4px;padding:3px 6px;font-size:10px;color:#ffa500;">⚖️ PROBATE<br><span style='font-size:9px;color:#aaa;'>${r.probate_note||''}</span></div>`;
+    }
+
     const cells=[
-      {v:r._file,c:'col-file'},{v:r.case_number},{v:r.county},{v:r.date_filed,c:'col-date'},
+      {v:r._file,c:'col-file'},
+      {raw:typeBadge},
+      {v:r.case_number},{v:r.county},{v:r.date_filed,c:'col-date'},
       {v:r.owner_name},{v:[r.mailing_address,r.mailing_city,r.mailing_state,r.mailing_zip].filter(Boolean).join(', ')},
       {v:r.property_address},{v:r.legal_description,s:'font-size:10px;'},
       {v:r.lender_name},{v:fmt(r.loan_balance,'money'),c:'col-money'},
@@ -641,7 +704,7 @@ function renderTable(){
       {v:r._monthly_piti?'~$'+r._monthly_piti.toFixed(2):null,c:'col-money'},
       {v:r._daily_interest?'$'+r._daily_interest.toFixed(2)+'/day':null,c:'col-money'},
       {v:r._est_payoff?'~$'+r._est_payoff.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):null,c:'col-money',s:'color:#ff9800;font-weight:bold;'},
-      {raw:r.probate_flag?`<div style="background:rgba(255,165,0,.15);border:1px solid rgba(255,165,0,.4);border-radius:4px;padding:3px 6px;font-size:10px;color:#ffa500;">⚖️ PROBATE<br><span style='font-size:9px;color:#aaa;'>${r.probate_note||''}</span></div>`:'<span class="col-null">—</span>'},
+      {raw:probateHTML},
     ];
     cells.forEach(c=>{
       const td=document.createElement('td');
@@ -668,10 +731,10 @@ function getCSVRows(ghl=false){
       return[first,last,r.property_address||r.mailing_address||'',r.mailing_city||'',r.mailing_state||'OK',r.mailing_zip||'','XDE Extract','pre-foreclosure,oklahoma,door-knock,'+(r.county||'').toLowerCase(),r.case_number||'',r.county||'',r.loan_balance||'',r.default_date||''];
     })];
   }
-  const h=['File','Case #','County','Date Filed','Owner Name','Mailing Address','City','State','ZIP','Property Address','Legal Description','Lender','Loan Balance','Interest Rate','Default Date','Original Loan','Lien Detail','Total Liens','Months Behind','Est. PITI/mo','Daily Interest','Est. Payoff'];
+  const h=['File','Type','Case #','County','Date Filed','Owner Name','Mailing Address','City','State','ZIP','Property Address','Legal Description','Lender','Loan Balance','Interest Rate','Default Date','Original Loan','Lien Detail','Total Liens','Months Behind','Est. PITI/mo','Daily Interest','Est. Payoff','Probate Flag','Probate Note','Deceased Name','Date of Death','Probate Type','Real Estate in Estate','Real Estate Description','Life Estate','Life Estate Note','Mortgage on Estate','Mortgage Detail','Heirs'];
   return[h,...rows.map(r=>{
     const lienarr=Array.isArray(r.additional_liens)?r.additional_liens:[];
-    return[r._file||'',r.case_number||'',r.county||'',r.date_filed||'',r.owner_name||'',r.mailing_address||'',r.mailing_city||'',r.mailing_state||'',r.mailing_zip||'',r.property_address||'',r.legal_description||'',r.lender_name||'',r.loan_balance||'',r.interest_rate||'',r.default_date||'',r.original_loan_amount||'',lienarr.map(l=>`${l.creditor}: $${l.amount}`).join(' | '),r._total_add_liens||'',r._months_behind||'',r._monthly_piti||'',r._daily_interest||'',r._est_payoff||''];
+    return[r._file||'',r.doc_type||'foreclosure',r.case_number||'',r.county||'',r.date_filed||'',r.owner_name||'',r.mailing_address||'',r.mailing_city||'',r.mailing_state||'',r.mailing_zip||'',r.property_address||'',r.legal_description||'',r.lender_name||'',r.loan_balance||'',r.interest_rate||'',r.default_date||'',r.original_loan_amount||'',lienarr.map(l=>`${l.creditor}: $${l.amount}`).join(' | '),r._total_add_liens||'',r._months_behind||'',r._monthly_piti||'',r._daily_interest||'',r._est_payoff||'',(r.probate_flag||(r.doc_type==='probate'||r.doc_type==='both'))?'YES':'',r.probate_note||'',r.deceased_name||'',r.date_of_death||'',r.probate_type||'',r.real_estate_found?'YES':'',r.real_estate_description||'',r.life_estate_flag?'YES':'',r.life_estate_note||'',r.mortgage_on_estate_property?'YES':'',r.mortgage_detail||'',Array.isArray(r.heirs)?r.heirs.filter(h=>h.name).map(h=>h.name+(h.relationship?` (${h.relationship})`:'') ).join(', '):''];
   })];
 }
 function toCSV(rows){return rows.map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');}
