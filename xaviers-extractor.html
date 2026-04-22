@@ -385,10 +385,7 @@ function delFile(name){
   if(el)el.remove();
 }
 
-// ── PDF Text Extraction via PDF.js (replaces image rendering — removes batch limit) ──
-// Instead of rendering each page as a JPEG and sending images to Claude (expensive, rate-limited),
-// we extract the raw text locally in the browser for free, then send text to Claude.
-// Text tokens cost ~10x less than vision tokens = no practical limit on PDF count.
+// ── PDF Text Extraction via PDF.js ──
 async function extractTextFromPDF(file){
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({data: new Uint8Array(buf)}).promise;
@@ -480,7 +477,6 @@ async function runExtraction(){
     if(fs){fs.textContent='reading...';fs.className='fstatus proc';}
 
     try{
-      // Delay between files (1.5s — much shorter than old 4s since text is lighter)
       if(done > 0) await new Promise(res=>setTimeout(res, 1500));
 
       if(fs){fs.textContent='extracting text...';fs.className='fstatus proc';}
@@ -490,7 +486,6 @@ async function runExtraction(){
       const r = await callClaude(pdfText, f.name);
       r._file = f.name;
 
-      // Duplicate check
       if(r.case_number && sessionCases.has(r.case_number)){
         r._duplicate = true;
         if(fs){fs.textContent='duplicate!';fs.className='fstatus err';}
@@ -503,7 +498,6 @@ async function runExtraction(){
         ? r.additional_liens.reduce((s,l)=>s+(parseFloat(l.amount)||0), 0)
         : 0;
 
-      // ── Payoff calculations (unchanged from original) ──
       const today = new Date();
       const balance = parseFloat(r.loan_balance)||0;
       const rate = parseFloat(r.interest_rate)||0;
@@ -547,8 +541,9 @@ async function runExtraction(){
 
     } catch(e){
       console.error(e);
-      rows.push({_file:f.name, _error:true});
+      rows.push({_file:f.name, _error:true, _errorMsg: e.message});
       if(fs){fs.textContent='error';fs.className='fstatus err';}
+      addSyncItem('err-'+f.name,'fail','❌ '+f.name+': '+e.message);
     }
 
     done++;
