@@ -464,7 +464,7 @@ ${pdfText.substring(0, 28000)}`;
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       model: 'claude-sonnet-4-5',
-      max_tokens: 2000,
+      max_tokens: 4000,
       messages: [{role: 'user', content: prompt}]
     })
   });
@@ -478,7 +478,7 @@ ${pdfText.substring(0, 28000)}`;
   console.log('API response:', res.status, data.content?.[0]?.text?.substring(0,100));
   const raw = data.content?.[0]?.text || '{}';
   try{return JSON.parse(raw.replace(/```json|```/g,'').trim());}
-  catch{return {};}
+  catch(e){console.error('JSON parse failed. Raw response:', raw); return {};}
 }
 
 // ── Main extraction loop ──
