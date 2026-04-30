@@ -112,6 +112,39 @@ tr:hover td{background:rgba(240,192,64,.03);}
 .callout{border-radius:7px;padding:10px 12px;font-size:11px;margin:10px 0;}
 .callout.yellow{background:rgba(240,192,64,.07);border:1px solid rgba(240,192,64,.2);color:var(--accent);}
 .callout.green{background:rgba(105,240,174,.06);border:1px solid rgba(105,240,174,.15);color:var(--green);}
+/* ── Tabs ── */
+.tabs-nav{display:flex;gap:0;margin-bottom:22px;border-bottom:2px solid var(--border);}
+.tab-btn{background:none;border:none;border-bottom:3px solid transparent;margin-bottom:-2px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:10px 24px;cursor:pointer;transition:all .2s;letter-spacing:.5px;}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-btn:hover:not(.active){color:var(--text);}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+/* ── Sheriff Sale row colors ── */
+.ss-good td{border-left:3px solid var(--green)!important;background:rgba(105,240,174,.04)!important;}
+.ss-skip td{opacity:.4;}
+.ss-bank td{border-left:3px solid var(--accent2)!important;background:rgba(79,195,247,.04)!important;}
+.ss-third td{border-left:3px solid #b39ddb!important;background:rgba(179,157,219,.04)!important;}
+.ss-delayed td{border-left:3px solid #ffa500!important;background:rgba(255,165,0,.05)!important;}
+/* ── Sheriff Sale status/outcome buttons ── */
+.ss-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;padding:3px 8px;border-radius:4px;cursor:pointer;transition:all .15s;white-space:nowrap;display:block;width:100%;margin-bottom:3px;text-align:left;}
+.ss-btn:last-child{margin-bottom:0;}
+.ss-btn:hover{border-color:var(--accent);color:var(--accent);}
+.ss-btn.active-good{background:rgba(105,240,174,.15);border-color:var(--green);color:var(--green);}
+.ss-btn.active-skip{background:rgba(255,107,107,.15);border-color:var(--red);color:var(--red);}
+.ss-btn.active-bank{background:rgba(79,195,247,.15);border-color:var(--accent2);color:var(--accent2);}
+.ss-btn.active-third{background:rgba(179,157,219,.15);border-color:#b39ddb;color:#b39ddb;}
+.ss-btn.active-delayed{background:rgba(255,165,0,.15);border-color:#ffa500;color:#ffa500;}
+/* ── Sheriff Sale inline inputs ── */
+.ss-input{background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:10px;padding:3px 6px;border-radius:4px;outline:none;width:100%;}
+.ss-input:focus{border-color:var(--accent);}
+/* ── Sheriff Sale filter bar ── */
+.ss-filters{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;}
+.sf-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;padding:5px 10px;border-radius:5px;cursor:pointer;transition:all .2s;}
+.sf-btn.active,.sf-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(240,192,64,.07);}
+/* ── Sheriff Sale dropzone ── */
+#ss-dropzone{border:2px dashed var(--border);border-radius:8px;padding:22px 14px;text-align:center;cursor:pointer;transition:all .2s;position:relative;margin-bottom:12px;}
+#ss-dropzone:hover,#ss-dropzone.over{border-color:var(--accent);background:rgba(240,192,64,.04);}
+#ss-dropzone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
 </style>
 </head>
 <body>
@@ -125,6 +158,12 @@ tr:hover td{background:rgba(240,192,64,.03);}
   <div class="tagline">Document Processing &amp; Data Extraction &nbsp;|&nbsp; Extract → Auto-push Google Sheets → Auto-pin Google Maps</div>
 </header>
 
+<div class="tabs-nav">
+  <button class="tab-btn active" id="tb-pref" onclick="switchTab('pref')">⚖️ Pre-Foreclosure</button>
+  <button class="tab-btn" id="tb-sheriff" onclick="switchTab('sheriff')">🏛️ Sheriff Sales</button>
+</div>
+
+<div id="tab-pref" class="tab-panel active">
 <div class="layout">
 <div>
 
@@ -230,6 +269,105 @@ tr:hover td{background:rgba(240,192,64,.03);}
   </div>
 </div>
 </div>
+</div><!-- end tab-pref -->
+
+<!-- ═══════════════════════════════════════════════════════════
+     SHERIFF SALES TAB
+═══════════════════════════════════════════════════════════ -->
+<div id="tab-sheriff" class="tab-panel">
+<div class="layout">
+<div>
+
+  <div class="card">
+    <div class="card-title"><span class="pip blue"></span>Connections</div>
+    <div class="conn-item">
+      <div class="conn-label">⚙️ Uses same Google Sheets &amp; Maps settings</div>
+      <div class="hint">Connection URLs are shared with the Pre-Foreclosure tab. Switch over there to update them.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="pip"></span>Upload Sheriff Sale PDFs</div>
+    <div id="ss-dropzone">
+      <input type="file" id="ss-finput" multiple accept=".pdf">
+      <div class="dz-icon">🏛️</div>
+      <div class="dz-text"><strong>Click or drag</strong> OSCN PDFs here</div>
+      <div style="font-size:10px;color:var(--green);margin-top:4px;">✦ Same OSCN foreclosure PDFs — drop all at once</div>
+    </div>
+    <div id="ss-file-list" style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px;"></div>
+
+    <div class="card-title" style="margin-top:4px;"><span class="pip"></span>Fields Extracted</div>
+    <div class="chips">
+      <div class="chip"><span class="chip-dot"></span>Owner Name</div>
+      <div class="chip"><span class="chip-dot"></span>Property Address</div>
+      <div class="chip"><span class="chip-dot"></span>Case #</div>
+      <div class="chip"><span class="chip-dot"></span>County</div>
+      <div class="chip"><span class="chip-dot"></span>Lender</div>
+      <div class="chip"><span class="chip-dot"></span>Loan Balance</div>
+      <div class="chip"><span class="chip-dot"></span>Est. Payoff</div>
+      <div class="chip" style="border-color:rgba(105,240,174,.4);color:var(--green);"><span class="chip-dot" style="background:var(--green);"></span>Equity Status</div>
+      <div class="chip" style="border-color:rgba(255,165,0,.4);color:#ffa500;"><span class="chip-dot" style="background:#ffa500;"></span>Sale Outcome</div>
+    </div>
+
+    <button id="ss-run-btn" onclick="runSSExtraction()" style="width:100%;background:var(--accent);color:#0b0c0e;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;border:none;padding:12px;border-radius:8px;cursor:pointer;transition:all .15s;">⚡ Extract Sheriff Sales</button>
+    <div id="ss-prog-wrap" style="display:none;margin-top:10px;">
+      <div class="prog-label"><span id="ss-prog-text">Processing...</span><span id="ss-prog-pct">0%</span></div>
+      <div class="prog-track"><div id="ss-prog-fill" style="height:100%;background:var(--accent);border-radius:99px;width:0%;transition:width .35s;"></div></div>
+    </div>
+    <div id="ss-sync-log" style="display:flex;flex-direction:column;gap:4px;margin-top:10px;"></div>
+  </div>
+
+</div>
+
+<div>
+  <div id="ss-empty-card" class="card">
+    <div style="text-align:center;padding:50px 20px;color:var(--muted);">
+      <div style="font-size:40px;margin-bottom:10px;">🏛️</div>
+      <p>Upload your OSCN PDFs from the sheriff sale list.<br>
+      Mark each one <span style="color:var(--green);">Has Equity</span> or <span style="color:var(--red);">Skip</span>.<br>
+      After the sale, log the outcome.<br><br>
+      <span style="color:var(--green);">✦ All statuses save automatically — never lose your notes</span></p>
+    </div>
+  </div>
+
+  <div id="ss-results-wrap" class="card" style="display:none;">
+    <div class="rtoolbar">
+      <div class="rcount">
+        <strong id="ss-rcount-num">0</strong> properties &nbsp;·&nbsp;
+        <span style="color:var(--green);" id="ss-good-count">0</span> good &nbsp;·&nbsp;
+        <span style="color:var(--red);" id="ss-skip-count">0</span> skipped
+      </div>
+      <div class="tbtn-group">
+        <button class="tbtn" onclick="exportSSCSV()">⬇️ CSV</button>
+        <button class="tbtn green-btn" onclick="exportSSGHL()">⚡ GHL (good leads)</button>
+      </div>
+    </div>
+
+    <div class="ss-filters">
+      <button class="sf-btn active" id="sf-all"     onclick="setSSFilter('all')">All</button>
+      <button class="sf-btn" id="sf-good"    onclick="setSSFilter('good')"    style="color:var(--green);">✓ Has Equity</button>
+      <button class="sf-btn" id="sf-skip"    onclick="setSSFilter('skip')"    style="color:var(--red);">✗ Skipped</button>
+      <button class="sf-btn" id="sf-pending" onclick="setSSFilter('pending')" style="color:var(--accent);">⏰ Awaiting Outcome</button>
+      <button class="sf-btn" id="sf-bank"    onclick="setSSFilter('bank')"    style="color:var(--accent2);">🏦 Sold to Bank</button>
+      <button class="sf-btn" id="sf-third"   onclick="setSSFilter('third')"   style="color:#b39ddb;">👤 3rd Party</button>
+      <button class="sf-btn" id="sf-delayed" onclick="setSSFilter('delayed')" style="color:#ffa500;">⏳ Delayed</button>
+    </div>
+
+    <div class="tscroll">
+      <table>
+        <thead><tr>
+          <th>Case #</th><th>County</th><th>Sale Date</th>
+          <th>Owner</th><th>Property</th><th>Lender</th>
+          <th>Loan Bal</th><th>Opening Bid</th><th>Est. Payoff</th>
+          <th>Equity?</th><th>Outcome</th><th>Notes</th>
+        </tr></thead>
+        <tbody id="ss-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+</div><!-- end tab-sheriff -->
 
 <!-- SETUP MODAL -->
 <div id="modal-overlay">
@@ -812,6 +950,278 @@ function copyTSV(){if(!rows.length)return;const tsv=getCSVRows().map(r=>r.join('
 function showHelp(){document.getElementById('modal-overlay').style.display='block';}
 function closeModal(){document.getElementById('modal-overlay').style.display='none';}
 document.getElementById('modal-overlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
+
+// ══════════════════════════════════════════════════════════════
+//  TAB SWITCHING
+// ══════════════════════════════════════════════════════════════
+function switchTab(tab){
+  ['pref','sheriff'].forEach(t=>{
+    document.getElementById('tab-'+t).classList.toggle('active',t===tab);
+    document.getElementById('tb-'+t).classList.toggle('active',t===tab);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SHERIFF SALES — state
+// ══════════════════════════════════════════════════════════════
+let ssFiles=[],ssRows=[],ssFilter='all',ssStatuses={};
+
+function loadSsStatuses(){
+  try{ssStatuses=JSON.parse(localStorage.getItem('ss_statuses')||'{}');}
+  catch(e){ssStatuses={};}
+}
+function saveSsStatuses(){
+  localStorage.setItem('ss_statuses',JSON.stringify(ssStatuses));
+}
+loadSsStatuses();
+
+// ── SS file handling ──
+const ssDz=document.getElementById('ss-dropzone');
+ssDz.addEventListener('dragover',e=>{e.preventDefault();ssDz.classList.add('over');});
+ssDz.addEventListener('dragleave',()=>ssDz.classList.remove('over'));
+ssDz.addEventListener('drop',e=>{e.preventDefault();ssDz.classList.remove('over');ssAddFiles([...e.dataTransfer.files].filter(f=>f.type==='application/pdf'));});
+document.getElementById('ss-finput').addEventListener('change',function(){ssAddFiles([...this.files]);this.value='';});
+
+function ssAddFiles(newFiles){
+  newFiles.forEach(f=>{
+    if(ssFiles.find(u=>u.name===f.name))return;
+    ssFiles.push(f);
+    const li=document.createElement('div');
+    li.className='fitem';li.id='ss-fi-'+CSS.escape(f.name);
+    li.innerHTML=`<span>📄</span><span class="fname" title="${f.name}">${f.name}</span><span class="fstatus" id="ss-fs-${CSS.escape(f.name)}">ready</span><span class="fdel" onclick="ssDelFile('${f.name.replace(/'/g,"\\'")}')">×</span>`;
+    document.getElementById('ss-file-list').appendChild(li);
+  });
+}
+function ssDelFile(name){
+  ssFiles=ssFiles.filter(f=>f.name!==name);
+  const el=document.getElementById('ss-fi-'+CSS.escape(name));
+  if(el)el.remove();
+}
+
+// ── SS extraction ──
+async function runSSExtraction(){
+  if(!ssFiles.length)return alert('Upload at least one PDF first.');
+  const btn=document.getElementById('ss-run-btn');
+  btn.disabled=true;btn.innerHTML='<span class="spin"></span>Extracting...';
+  document.getElementById('ss-prog-wrap').style.display='block';
+  document.getElementById('ss-sync-log').innerHTML='';
+  ssRows=[];let done=0,prevWasVision=false;
+  const sessionCases=new Set();
+
+  for(const f of ssFiles){
+    const fs=document.getElementById('ss-fs-'+CSS.escape(f.name));
+    if(fs){fs.textContent='reading...';fs.className='fstatus proc';}
+    try{
+      if(done>0) await new Promise(res=>setTimeout(res,prevWasVision?8000:2000));
+      if(fs){fs.textContent='extracting text...';fs.className='fstatus proc';}
+      const pdfText=await extractTextFromPDF(f);
+      const useVision=isTextEmpty(pdfText);
+      prevWasVision=useVision;
+      let images=null;
+      if(useVision){
+        if(fs){fs.textContent='rendering pages...';fs.className='fstatus proc';}
+        images=await extractImagesFromPDF(f,10);
+      }
+      if(fs){fs.textContent='AI reading...';fs.className='fstatus proc';}
+      const r=await callClaude(useVision?'':pdfText,f.name,images);
+      r._file=f.name;
+
+      if(r.case_number&&sessionCases.has(r.case_number)){
+        r._duplicate=true;
+        if(fs){fs.textContent='duplicate!';fs.className='fstatus err';}
+      } else {
+        if(r.case_number)sessionCases.add(r.case_number);
+      }
+
+      // Load any saved status for this case
+      const saved=ssStatuses[r.case_number]||{};
+      r._ss_status=saved.status||'';
+      r._ss_outcome=saved.outcome||'';
+      r._ss_sale_date=saved.sale_date||'';
+      r._ss_opening_bid=saved.opening_bid||'';
+      r._ss_notes=saved.notes||'';
+
+      // Calculate est. payoff (same logic as pref tab)
+      const today=new Date();
+      const balance=parseFloat(r.loan_balance)||0;
+      const rate=parseFloat(r.interest_rate)||0;
+      const origLoanAmt=parseFloat(r.original_loan_amount)||0;
+      const piPayment=parseFloat(r.monthly_payment)||0;
+      const defDateStr=r.first_default_date||r.default_date||'';
+      if(defDateStr){
+        let defDate=new Date(defDateStr);
+        if(isNaN(defDate)){const p=defDateStr.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);if(p)defDate=new Date(parseInt(p[3]),parseInt(p[1])-1,parseInt(p[2]));}
+        if(!isNaN(defDate)){r._months_behind=Math.max(0,Math.floor((today-defDate)/(1000*60*60*24*30.44)));}
+      }
+      if(balance&&r._months_behind>0){
+        const estPropValue=origLoanAmt>0?origLoanAmt/0.90:balance/0.90;
+        const monthlyTI=Math.round((estPropValue*0.025/12)*100)/100;
+        const monthlyPI=piPayment>0?piPayment:Math.round((balance*(rate/100/12))/(1-Math.pow(1+(rate/100/12),-360))*100)/100;
+        r._monthly_piti=Math.round((monthlyPI+monthlyTI)*100)/100;
+        r._est_payoff=Math.round((balance+Math.round((monthlyPI+monthlyTI)*r._months_behind*100)/100)*100)/100;
+        r._daily_interest=Math.round((balance*(rate/100)/365)*100)/100;
+      }
+
+      ssRows.push(r);
+      if(fs){fs.textContent='✓';fs.className='fstatus done';}
+    }catch(e){
+      console.error(e);
+      ssRows.push({_file:f.name,_error:true,_errorMsg:e.message});
+      if(fs){fs.textContent='error';fs.className='fstatus err';}
+      ssSyncLog('ss-err-'+f.name,'fail','❌ '+f.name+': '+e.message);
+    }
+    done++;
+    const pct=Math.round(done/ssFiles.length*100);
+    document.getElementById('ss-prog-fill').style.width=pct+'%';
+    document.getElementById('ss-prog-pct').textContent=pct+'%';
+    document.getElementById('ss-prog-text').textContent=`${done} of ${ssFiles.length} processed`;
+  }
+  renderSSTable();
+  btn.disabled=false;btn.innerHTML='⚡ Extract Sheriff Sales';
+}
+
+function ssSyncLog(id,state,text){
+  const log=document.getElementById('ss-sync-log');
+  let el=document.getElementById(id);
+  if(!el){el=document.createElement('div');el.id=id;log.appendChild(el);}
+  el.className='sync-item '+state;
+  el.innerHTML=state==='pending'?`<span class="spin-sm"></span> ${text}`:text;
+}
+
+// ── SS status / outcome / field updates ──
+function setSsStatus(caseNum,status){
+  if(!ssStatuses[caseNum])ssStatuses[caseNum]={};
+  // toggle off if already active
+  ssStatuses[caseNum].status=(ssStatuses[caseNum].status===status?'':status);
+  saveSsStatuses();
+  const r=ssRows.find(r=>r.case_number===caseNum);
+  if(r)r._ss_status=ssStatuses[caseNum].status;
+  renderSSTable();
+}
+function setSsOutcome(caseNum,outcome){
+  if(!ssStatuses[caseNum])ssStatuses[caseNum]={};
+  ssStatuses[caseNum].outcome=(ssStatuses[caseNum].outcome===outcome?'':outcome);
+  saveSsStatuses();
+  const r=ssRows.find(r=>r.case_number===caseNum);
+  if(r)r._ss_outcome=ssStatuses[caseNum].outcome;
+  renderSSTable();
+}
+function updateSsField(caseNum,field,value){
+  if(!ssStatuses[caseNum])ssStatuses[caseNum]={};
+  ssStatuses[caseNum][field]=value;
+  saveSsStatuses();
+  const r=ssRows.find(r=>r.case_number===caseNum);
+  if(r)r['_ss_'+field]=value;
+}
+
+// ── SS filter ──
+function setSSFilter(f){
+  ssFilter=f;
+  document.querySelectorAll('.sf-btn').forEach(b=>b.classList.remove('active'));
+  const el=document.getElementById('sf-'+f);
+  if(el)el.classList.add('active');
+  renderSSTable();
+}
+
+// ── SS table render ──
+function renderSSTable(){
+  const tbody=document.getElementById('ss-tbody');
+  tbody.innerHTML='';
+  const all=ssRows.filter(r=>!r._duplicate&&!r._error);
+  let filtered=all;
+  if(ssFilter==='good')    filtered=all.filter(r=>r._ss_status==='good');
+  else if(ssFilter==='skip')    filtered=all.filter(r=>r._ss_status==='skip');
+  else if(ssFilter==='bank')    filtered=all.filter(r=>r._ss_outcome==='bank');
+  else if(ssFilter==='third')   filtered=all.filter(r=>r._ss_outcome==='third_party');
+  else if(ssFilter==='delayed') filtered=all.filter(r=>r._ss_outcome==='delayed');
+  else if(ssFilter==='pending') filtered=all.filter(r=>r._ss_status==='good'&&!r._ss_outcome);
+
+  document.getElementById('ss-rcount-num').textContent=all.length;
+  document.getElementById('ss-good-count').textContent=all.filter(r=>r._ss_status==='good').length;
+  document.getElementById('ss-skip-count').textContent=all.filter(r=>r._ss_status==='skip').length;
+
+  filtered.forEach(r=>{
+    const caseNum=r.case_number||r._file;
+    const status=r._ss_status||'';
+    const outcome=r._ss_outcome||'';
+    const tr=document.createElement('tr');
+    if(outcome==='bank')tr.className='ss-bank';
+    else if(outcome==='third_party')tr.className='ss-third';
+    else if(outcome==='delayed')tr.className='ss-delayed';
+    else if(status==='good')tr.className='ss-good';
+    else if(status==='skip')tr.className='ss-skip';
+
+    const safe=caseNum.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const loanBal=r.loan_balance?'$'+parseFloat(r.loan_balance).toLocaleString('en-US',{minimumFractionDigits:2}):'—';
+    const estPayoff=r._est_payoff?'~$'+r._est_payoff.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
+
+    const eqHTML=`<div>
+      <button class="ss-btn ${status==='good'?'active-good':''}" onclick="setSsStatus('${safe}','good')">✓ Has Equity</button>
+      <button class="ss-btn ${status==='skip'?'active-skip':''}" onclick="setSsStatus('${safe}','skip')">✗ Skip</button>
+    </div>`;
+    const outHTML=`<div>
+      <button class="ss-btn ${outcome==='bank'?'active-bank':''}" onclick="setSsOutcome('${safe}','bank')">🏦 Bank</button>
+      <button class="ss-btn ${outcome==='third_party'?'active-third':''}" onclick="setSsOutcome('${safe}','third_party')">👤 3rd Party</button>
+      <button class="ss-btn ${outcome==='delayed'?'active-delayed':''}" onclick="setSsOutcome('${safe}','delayed')">⏳ Delayed</button>
+    </div>`;
+    const saleDateHTML=`<input class="ss-input" type="date" value="${r._ss_sale_date||''}" onchange="updateSsField('${safe}','sale_date',this.value)" style="width:120px;">`;
+    const bidHTML=`<input class="ss-input" type="text" placeholder="$0" value="${r._ss_opening_bid||''}" onchange="updateSsField('${safe}','opening_bid',this.value)" style="width:90px;">`;
+    const notesHTML=`<input class="ss-input" type="text" placeholder="notes..." value="${(r._ss_notes||'').replace(/"/g,'&quot;')}" onchange="updateSsField('${safe}','notes',this.value)" style="width:150px;">`;
+
+    const cols=[
+      {v:r.case_number||'—',c:'col-date'},
+      {v:r.county||'—'},
+      {raw:saleDateHTML},
+      {v:r.owner_name||'—'},
+      {v:r.property_address||r.mailing_address||'—'},
+      {v:r.lender_name||'—'},
+      {v:loanBal,c:'col-money'},
+      {raw:bidHTML},
+      {v:estPayoff,s:'color:#ff9800;font-weight:bold;'},
+      {raw:eqHTML},
+      {raw:outHTML},
+      {raw:notesHTML},
+    ];
+    cols.forEach(c=>{
+      const td=document.createElement('td');
+      if(c.raw)td.innerHTML=c.raw;
+      else{td.textContent=c.v;if(c.c)td.className=c.c;}
+      if(c.s)td.style.cssText=c.s;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('ss-empty-card').style.display=ssRows.length?'none':'block';
+  document.getElementById('ss-results-wrap').style.display=ssRows.length?'block':'none';
+}
+
+// ── SS exports ──
+function exportSSCSV(){
+  if(!ssRows.length)return;
+  const h=['Case #','County','Sale Date','Opening Bid','Owner','Property Address','Lender','Loan Balance','Est. Payoff','Equity Status','Outcome','Notes'];
+  const data=[h,...ssRows.filter(r=>!r._error&&!r._duplicate).map(r=>[
+    r.case_number||'',r.county||'',r._ss_sale_date||'',r._ss_opening_bid||'',
+    r.owner_name||'',r.property_address||'',r.lender_name||'',r.loan_balance||'',
+    r._est_payoff||'',r._ss_status||'',r._ss_outcome||'',r._ss_notes||''
+  ])];
+  const b=new Blob([data.map(row=>row.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='sheriff_sales.csv';a.click();
+}
+function exportSSGHL(){
+  if(!ssRows.length)return;
+  const h=['first_name','last_name','address1','city','state','postal_code','source','tags','custom_case_number','custom_county','custom_loan_balance','custom_sale_date'];
+  const good=ssRows.filter(r=>!r._error&&!r._duplicate&&r._ss_status==='good');
+  if(!good.length)return alert('No leads marked "Has Equity" yet. Mark some leads first.');
+  const data=[h,...good.map(r=>{
+    const nm=(r.owner_name||'').trim().split(/\s+/);
+    const last=nm.length>1?nm[nm.length-1]:'';
+    const first=nm.slice(0,nm.length>1?nm.length-1:1).join(' ');
+    return[first,last,r.property_address||r.mailing_address||'',r.mailing_city||'',r.mailing_state||'OK',r.mailing_zip||'','XDE Sheriff Sale','sheriff-sale,oklahoma,door-knock,'+(r.county||'').toLowerCase(),r.case_number||'',r.county||'',r.loan_balance||'',r._ss_sale_date||''];
+  })];
+  const b=new Blob([data.map(row=>row.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='sheriff_ghl_import.csv';a.click();
+}
 </script>
 </body>
 </html>
