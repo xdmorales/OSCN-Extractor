@@ -990,12 +990,17 @@ async function testGhlConn(){
   if(!key||!locId){alert('Enter both the API key and Location ID first.');return;}
   setGhlDot('testing');
   try{
-    const res = await fetch(`https://services.leadconnectorhq.com/locations/${locId}`,{
-      headers:{'Authorization':'Bearer '+key,'Version':'2021-07-28'}
+    const res = await fetch(`https://services.leadconnectorhq.com/contacts/?locationId=${locId}&limit=1`,{
+      headers:{'Authorization':'Bearer '+key,'Version':'2021-07-28','Content-Type':'application/json'}
     });
     if(res.ok) setGhlDot('connected');
     else setGhlDot('error');
-  }catch(e){setGhlDot('error');}
+  }catch(e){
+    // CORS or network error — save settings and mark as saved so user can still push
+    saveGhlSettings();
+    setGhlDot('saved');
+    document.getElementById('ghl-status').textContent='Saved — push will confirm connection';
+  }
 }
 async function pushSSToGHL(){
   const apiKey = localStorage.getItem('ghlApiKey')||'';
