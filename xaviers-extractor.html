@@ -288,11 +288,10 @@ tr:hover td{background:rgba(240,192,64,.03);}
       <div class="conn-label">⚡ GoHighLevel — push good leads directly to CRM</div>
       <div class="conn-status">
         <div class="conn-dot" id="ghl-dot"></div>
-        <span id="ghl-status">Not connected</span>
+        <span id="ghl-status">Not tested</span>
       </div>
-      <input class="conn-input" id="ghl-api-key" placeholder="GHL Private Integration API key" oninput="saveGhlSettings()">
-      <input class="conn-input" id="ghl-location-id" placeholder="Location ID" oninput="saveGhlSettings()" style="margin-top:5px;">
       <button class="btn-sm" onclick="testGhlConn()">Test Connection</button>
+      <div class="hint">API key is secured on your Cloudflare Worker — nothing to enter here.</div>
     </div>
   </div>
 
@@ -963,50 +962,27 @@ function closeModal(){document.getElementById('modal-overlay').style.display='no
 document.getElementById('modal-overlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
 
 // ══════════════════════════════════════════════════════════════
-//  GHL CONNECTION
+//  GHL CONNECTION (via Cloudflare Worker proxy — no keys in browser)
 // ══════════════════════════════════════════════════════════════
-function saveGhlSettings(){
-  localStorage.setItem('ghlApiKey', document.getElementById('ghl-api-key').value);
-  localStorage.setItem('ghlLocationId', document.getElementById('ghl-location-id').value);
-}
-function loadGhlSettings(){
-  const k = localStorage.getItem('ghlApiKey')||'';
-  const l = localStorage.getItem('ghlLocationId')||'';
-  document.getElementById('ghl-api-key').value = k;
-  document.getElementById('ghl-location-id').value = l;
-  if(k && l) setGhlDot('saved');
-}
+const GHL_PROXY = 'https://oscn-proxy.xfutureinvestmentsllc.workers.dev/ghl';
+
 function setGhlDot(state){
-  const dot = document.getElementById('ghl-dot');
-  const txt = document.getElementById('ghl-status');
+  const dot=document.getElementById('ghl-dot');
+  const txt=document.getElementById('ghl-status');
   if(state==='connected'){dot.className='conn-dot connected';txt.textContent='Connected ✓';}
-  else if(state==='error'){dot.className='conn-dot error';txt.textContent='Error — check key';}
-  else if(state==='saved'){dot.className='conn-dot';txt.textContent='Key saved (untested)';}
+  else if(state==='error'){dot.className='conn-dot error';txt.textContent='Error — check Worker setup';}
   else{dot.className='conn-dot';txt.textContent='Testing...';}
 }
 async function testGhlConn(){
-  const key = document.getElementById('ghl-api-key').value.trim();
-  const locId = document.getElementById('ghl-location-id').value.trim();
-  if(!key||!locId){alert('Enter both the API key and Location ID first.');return;}
   setGhlDot('testing');
   try{
-    const res = await fetch(`https://services.leadconnectorhq.com/contacts/?locationId=${locId}&limit=1`,{
-      headers:{'Authorization':'Bearer '+key,'Version':'2021-07-28','Content-Type':'application/json'}
-    });
+    const res=await fetch(GHL_PROXY+'/test');
     if(res.ok) setGhlDot('connected');
     else setGhlDot('error');
-  }catch(e){
-    // CORS or network error — save settings and mark as saved so user can still push
-    saveGhlSettings();
-    setGhlDot('saved');
-    document.getElementById('ghl-status').textContent='Saved — push will confirm connection';
-  }
+  }catch(e){setGhlDot('error');}
 }
 async function pushSSToGHL(){
-  const apiKey = localStorage.getItem('ghlApiKey')||'';
-  const locationId = localStorage.getItem('ghlLocationId')||'';
-  if(!apiKey||!locationId){alert('Add your GHL API key and Location ID in the Connections section first.');return;}
-  const good = ssRows.filter(r=>!r._error&&!r._duplicate&&r._ss_status==='good');
+  const good=ssRows.filter(r=>!r._error&&!r._duplicate&&r._ss_status==='good');
   if(!good.length){alert('No leads marked "Has Equity" yet. Mark some leads first.');return;}
   ssSyncLog('sl-ghl','pending',`⚡ Pushing ${good.length} lead(s) to GoHighLevel...`);
   let success=0,failed=0;
@@ -1015,36 +991,27 @@ async function pushSSToGHL(){
     const lastName=nm.length>1?nm[nm.length-1]:'';
     const firstName=nm.slice(0,nm.length>1?nm.length-1:1).join(' ');
     const body={
-      locationId,
-      firstName,
-      lastName,
+      firstName,lastName,
       address1:r.property_address||r.mailing_address||'',
       city:r.mailing_city||'',
       state:r.mailing_state||'OK',
       postalCode:r.mailing_zip||'',
       source:"Xavier's Extractor - Sheriff Sale",
       tags:['sheriff-sale','has-equity',(r.county||'').toLowerCase()+'-county'].filter(Boolean),
-      customFields:[
-        {key:'case_number',field_value:r.case_number||''},
-        {key:'loan_balance',field_value:r.loan_balance||''},
-        {key:'sale_date',field_value:r._ss_sale_date||''},
-        {key:'lender',field_value:r.lender_name||''},
-      ]
     };
     try{
-      const res=await fetch('https://services.leadconnectorhq.com/contacts/',{
+      const res=await fetch(GHL_PROXY+'/contacts',{
         method:'POST',
-        headers:{'Authorization':'Bearer '+apiKey,'Version':'2021-07-28','Content-Type':'application/json'},
+        headers:{'Content-Type':'application/json'},
         body:JSON.stringify(body)
       });
-      if(res.ok) success++;
+      if(res.ok)success++;
       else{failed++;console.error('GHL error:',res.status,await res.text());}
     }catch(e){failed++;console.error('GHL push error:',e);}
   }
-  if(failed===0) ssSyncLog('sl-ghl','success',`⚡ ${success} lead(s) pushed to GoHighLevel ✓`);
+  if(failed===0)ssSyncLog('sl-ghl','success',`⚡ ${success} lead(s) pushed to GoHighLevel ✓`);
   else ssSyncLog('sl-ghl','fail',`⚡ ${success} pushed, ${failed} failed — check browser console`);
 }
-window.addEventListener('load', loadGhlSettings);
 
 // ══════════════════════════════════════════════════════════════
 //  TAB SWITCHING
