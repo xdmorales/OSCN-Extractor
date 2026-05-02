@@ -1007,13 +1007,42 @@ function parseXlsxFile(file){
       const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
       const ws = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(ws, {defval:''});
+      if(!data.length){alert('Excel file appears empty.');return;}
+
+      // Detect columns by scanning headers case-insensitively, then fallback to pattern scan
+      const firstRow = data[0];
+      const headers = Object.keys(firstRow);
+
+      function findCol(row, ...candidates){
+        for(const c of candidates){
+          const key = headers.find(h=>h.toLowerCase().replace(/[^a-z0-9]/g,'')===c.toLowerCase().replace(/[^a-z0-9]/g,''));
+          if(key && String(row[key]).trim()) return String(row[key]).trim();
+        }
+        return '';
+      }
+
+      // Auto-detect the case number column: first col whose value matches OSCN pattern
+      let caseCol = headers.find(h=>['case#','casenumber','case number','caseno','case no'].includes(h.toLowerCase().replace(/[^a-z0-9]/g,'')));
+      if(!caseCol){
+        // Scan first real data row for a cell that looks like a case number
+        for(const h of headers){
+          if(/^[A-Z]{2}-\d{2,4}-\d+/.test(String(firstRow[h]).trim())){caseCol=h;break;}
+        }
+      }
+
       ssFetchCases = data.map(row=>{
-        const caseNum = String(row['Case #']||row['Case Number']||row['CaseNumber']||row['case_number']||'').trim();
-        const address = String(row['Address']||row['Property Address']||'').trim();
-        const bid = row['Current Bid']||row['Opening Bid']||row['CurrentBid']||'';
-        const saleDate = row['Sales Date']||row['Sale Date']||row['SalesDate']||'';
+        const caseNum = caseCol ? String(row[caseCol]).trim() : findCol(row,'Case #','Case Number','CaseNumber','case_number','CaseNo');
+        const address = findCol(row,'Address','Property Address','PropertyAddress','SitusAddress');
+        const bid = findCol(row,'Opening Bid','Current Bid','OpeningBid','CurrentBid','MinBid','Minimum Bid');
+        const saleDate = findCol(row,'Sale Date','Sales Date','SaleDate','SalesDate','AuctionDate','Auction Date');
         return {caseNum, address, bid, saleDate};
-      }).filter(r=>r.caseNum);
+      }).filter(r=>r.caseNum && /[A-Z]{2}-/.test(r.caseNum));
+
+      if(!ssFetchCases.length){
+        alert(`No case numbers found.\n\nColumns in your file:\n${headers.join(', ')}\n\nExpecting a column with values like CJ-25-1234.`);
+        return;
+      }
+
       renderFetchList();
       const btn = document.getElementById('ss-fetch-btn');
       btn.disabled = false;
