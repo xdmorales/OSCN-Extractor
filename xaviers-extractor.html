@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Xavier's Extractor</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap');
 :root{--bg:#0b0c0e;--surface:#13151a;--surface2:#1a1d24;--border:#252830;--accent:#f0c040;--accent2:#4fc3f7;--green:#69f0ae;--red:#ff6b6b;--text:#e8eaf0;--muted:#5c6070;--maps:#34a853;--sheets:#0f9d58;}
@@ -145,6 +146,17 @@ tr:hover td{background:rgba(240,192,64,.03);}
 #ss-dropzone{border:2px dashed var(--border);border-radius:8px;padding:22px 14px;text-align:center;cursor:pointer;transition:all .2s;position:relative;margin-bottom:12px;}
 #ss-dropzone:hover,#ss-dropzone.over{border-color:var(--accent);background:rgba(240,192,64,.04);}
 #ss-dropzone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+/* ── Auto-fetch dropzone ── */
+#ss-xl-dropzone{border:2px dashed rgba(179,157,219,.35);border-radius:8px;padding:18px 14px;text-align:center;cursor:pointer;transition:all .2s;position:relative;margin-bottom:10px;}
+#ss-xl-dropzone:hover,#ss-xl-dropzone.over{border-color:#b39ddb;background:rgba(179,157,219,.04);}
+#ss-xl-dropzone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.fetch-item{display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 9px;font-size:10px;margin-bottom:3px;}
+.fetch-item .fi-case{color:#b39ddb;white-space:nowrap;}
+.fetch-item .fi-addr{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+#ss-fetch-btn{width:100%;background:var(--surface2);border:1px solid rgba(179,157,219,.5);color:#b39ddb;font-family:'Syne',sans-serif;font-weight:800;font-size:12px;padding:10px;border-radius:7px;cursor:pointer;transition:all .15s;}
+#ss-fetch-btn:hover:not(:disabled){background:rgba(179,157,219,.08);border-color:#b39ddb;}
+#ss-fetch-btn:disabled{opacity:.4;cursor:not-allowed;}
+#ss-fetch-log{display:flex;flex-direction:column;gap:3px;margin-top:8px;max-height:180px;overflow-y:auto;}
 </style>
 </head>
 <body>
@@ -296,7 +308,21 @@ tr:hover td{background:rgba(240,192,64,.03);}
   </div>
 
   <div class="card">
-    <div class="card-title"><span class="pip"></span>Upload Sheriff Sale PDFs</div>
+    <div class="card-title"><span class="pip" style="background:#b39ddb;"></span>Auto-Fetch from Bid4Assets</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6;">Drop the Excel from bid4assets — PDFs pull from OSCN automatically. No manual downloads.</div>
+    <div id="ss-xl-dropzone">
+      <input type="file" id="ss-xl-input" accept=".xlsx,.xls">
+      <div class="dz-icon">📊</div>
+      <div class="dz-text"><strong>Drop bid4assets Excel</strong> here</div>
+      <div style="font-size:10px;color:#b39ddb;margin-top:4px;">OKCSheriff_SaleAuctions_*.xlsx</div>
+    </div>
+    <div id="ss-fetch-list" style="margin-bottom:8px;"></div>
+    <button id="ss-fetch-btn" onclick="runOSCNFetch()" disabled>🔄 Upload Excel First</button>
+    <div id="ss-fetch-log"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="pip"></span>Or Upload PDFs Manually</div>
     <div id="ss-dropzone">
       <input type="file" id="ss-finput" multiple accept=".pdf">
       <div class="dz-icon">🏛️</div>
@@ -960,6 +986,203 @@ function copyTSV(){if(!rows.length)return;const tsv=getCSVRows().map(r=>r.join('
 function showHelp(){document.getElementById('modal-overlay').style.display='block';}
 function closeModal(){document.getElementById('modal-overlay').style.display='none';}
 document.getElementById('modal-overlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
+
+// ══════════════════════════════════════════════════════════════
+//  OSCN AUTO-FETCH
+// ══════════════════════════════════════════════════════════════
+const OSCN_PROXY = 'https://oscn-proxy.xfutureinvestmentsllc.workers.dev';
+let ssFetchCases = [];
+
+// xlsx dropzone
+const ssXlDz = document.getElementById('ss-xl-dropzone');
+ssXlDz.addEventListener('dragover', e=>{e.preventDefault();ssXlDz.classList.add('over');});
+ssXlDz.addEventListener('dragleave', ()=>ssXlDz.classList.remove('over'));
+ssXlDz.addEventListener('drop', e=>{e.preventDefault();ssXlDz.classList.remove('over');const f=[...e.dataTransfer.files][0];if(f)parseXlsxFile(f);});
+document.getElementById('ss-xl-input').addEventListener('change', function(){if(this.files[0])parseXlsxFile(this.files[0]);this.value='';});
+
+function parseXlsxFile(file){
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, {defval:''});
+      ssFetchCases = data.map(row=>{
+        const caseNum = String(row['Case #']||row['Case Number']||row['CaseNumber']||row['case_number']||'').trim();
+        const address = String(row['Address']||row['Property Address']||'').trim();
+        const bid = row['Current Bid']||row['Opening Bid']||row['CurrentBid']||'';
+        const saleDate = row['Sales Date']||row['Sale Date']||row['SalesDate']||'';
+        return {caseNum, address, bid, saleDate};
+      }).filter(r=>r.caseNum);
+      renderFetchList();
+      const btn = document.getElementById('ss-fetch-btn');
+      btn.disabled = false;
+      btn.textContent = `🔄 Fetch ${ssFetchCases.length} Cases from OSCN`;
+      btn.style.opacity = '1';
+    }catch(err){alert('Could not read Excel file: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderFetchList(){
+  const list = document.getElementById('ss-fetch-list');
+  list.innerHTML = '';
+  ssFetchCases.slice(0,5).forEach(c=>{
+    const div = document.createElement('div');
+    div.className = 'fetch-item';
+    div.innerHTML = `<span class="fi-case">${c.caseNum}</span><span class="fi-addr">${c.address}</span>`;
+    list.appendChild(div);
+  });
+  if(ssFetchCases.length > 5){
+    const div = document.createElement('div');
+    div.style.cssText = 'font-size:10px;color:var(--muted);text-align:center;padding:3px;';
+    div.textContent = `+ ${ssFetchCases.length - 5} more cases`;
+    list.appendChild(div);
+  }
+}
+
+function normalizeCaseNum(cn){
+  // CJ-17-7037 → CJ-2017-7037
+  const parts = cn.split('-');
+  if(parts.length === 3 && parts[1].length === 2) parts[1] = '20' + parts[1];
+  return parts.join('-');
+}
+
+function findPetitionPdfLink(html){
+  // Strategy 1: DOM parse — find PDF link near PETITION or [ P ]
+  try{
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const links = Array.from(doc.querySelectorAll('a[href*="GetDocument"][href*="fmt=pdf"]'));
+    for(const link of links){
+      const row = link.closest('tr') || link.parentElement?.parentElement;
+      const text = row ? row.textContent : '';
+      if(text.includes('[ P ]') || text.includes('PETITION')){
+        const href = link.getAttribute('href').replace(/&amp;/g,'&');
+        return href.startsWith('http') ? href : 'https://www.oscn.net'+href;
+      }
+    }
+    if(links.length > 0){
+      const href = links[0].getAttribute('href').replace(/&amp;/g,'&');
+      return href.startsWith('http') ? href : 'https://www.oscn.net'+href;
+    }
+  }catch(e){}
+  // Strategy 2: regex scan
+  const pIdx = html.indexOf('[ P ]');
+  if(pIdx > -1){
+    const section = html.substring(pIdx, pIdx+1000);
+    const match = section.match(/href="([^"]*GetDocument[^"]*fmt=pdf[^"]*)"/i);
+    if(match){
+      const href = match[1].replace(/&amp;/g,'&');
+      return href.startsWith('http') ? href : 'https://www.oscn.net'+href;
+    }
+  }
+  return null;
+}
+
+function formatSaleDate(val){
+  if(!val) return '';
+  if(val instanceof Date) return val.toISOString().split('T')[0];
+  if(typeof val === 'string'){
+    try{const d=new Date(val);if(!isNaN(d))return d.toISOString().split('T')[0];}catch(e){}
+    return val;
+  }
+  // Excel serial date number
+  if(typeof val === 'number'){
+    try{const d=new Date((val-25569)*86400000);return d.toISOString().split('T')[0];}catch(e){}
+  }
+  return String(val);
+}
+
+function addFetchLog(text){
+  const log = document.getElementById('ss-fetch-log');
+  const div = document.createElement('div');
+  div.className = 'sync-item '+(text.startsWith('✓')?'success':text.startsWith('❌')||text.startsWith('⚠')?'fail':'pending');
+  div.textContent = text;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function runOSCNFetch(){
+  if(!ssFetchCases.length) return alert('Upload a bid4assets Excel file first.');
+  const btn = document.getElementById('ss-fetch-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching...';
+  document.getElementById('ss-fetch-log').innerHTML = '';
+
+  const fetchedFiles = [];
+  const fetchedMeta = {};
+
+  for(let i=0; i<ssFetchCases.length; i++){
+    const {caseNum, address, bid, saleDate} = ssFetchCases[i];
+    const cn = normalizeCaseNum(caseNum);
+    addFetchLog(`⏳ ${cn} — fetching case page...`);
+    try{
+      // 1. Fetch case page
+      const caseRes = await fetch(
+        `${OSCN_PROXY}/oscn/dockets/GetCaseInformation.aspx?db=oklahoma&number=${encodeURIComponent(cn)}`
+      );
+      if(!caseRes.ok){addFetchLog(`❌ ${cn} — case page error (${caseRes.status})`);continue;}
+      const html = await caseRes.text();
+      if(html.includes('CAPTCHA_REQUIRED')){addFetchLog(`⚠️ ${cn} — CAPTCHA, skipping`);continue;}
+
+      // 2. Find petition PDF link
+      const pdfUrl = findPetitionPdfLink(html);
+      if(!pdfUrl){addFetchLog(`⚠️ ${cn} — no petition PDF found`);continue;}
+
+      addFetchLog(`📄 ${cn} — downloading PDF...`);
+
+      // 3. Download PDF via proxy
+      const proxiedUrl = OSCN_PROXY + '/oscn' + pdfUrl.replace('https://www.oscn.net','');
+      const pdfRes = await fetch(proxiedUrl);
+      if(!pdfRes.ok){addFetchLog(`❌ ${cn} — PDF download failed (${pdfRes.status})`);continue;}
+
+      const buf = await pdfRes.arrayBuffer();
+      const file = new File([buf], `${cn}.pdf`, {type:'application/pdf'});
+      fetchedFiles.push(file);
+      fetchedMeta[cn] = {bid, saleDate};
+      addFetchLog(`✓ ${cn} — ready`);
+
+      if(i < ssFetchCases.length-1) await new Promise(r=>setTimeout(r, 1200));
+
+    }catch(err){addFetchLog(`❌ ${cn} — ${err.message}`);}
+  }
+
+  if(!fetchedFiles.length){
+    addFetchLog('⚠️ No PDFs fetched — check Worker is updated');
+    btn.disabled = false;
+    btn.textContent = `🔄 Retry (${ssFetchCases.length} cases)`;
+    return;
+  }
+
+  addFetchLog(`⚡ ${fetchedFiles.length} PDFs fetched — extracting...`);
+  ssAddFiles(fetchedFiles);
+  window._ssFetchMeta = fetchedMeta;
+  await runSSExtraction();
+
+  // Pre-fill sale date + opening bid from spreadsheet
+  if(window._ssFetchMeta){
+    ssRows.forEach(r=>{
+      const meta = window._ssFetchMeta[r.case_number];
+      if(meta){
+        if(meta.saleDate && !r._ss_sale_date){
+          const d = formatSaleDate(meta.saleDate);
+          updateSsField(r.case_number,'sale_date',d);
+          r._ss_sale_date = d;
+        }
+        if(meta.bid && !r._ss_opening_bid){
+          const b = String(meta.bid).replace(/[$,\s]/g,'');
+          updateSsField(r.case_number,'opening_bid',b);
+          r._ss_opening_bid = b;
+        }
+      }
+    });
+    renderSSTable();
+  }
+
+  btn.disabled = false;
+  btn.textContent = `✓ Done — ${fetchedFiles.length} fetched`;
+}
 
 // ══════════════════════════════════════════════════════════════
 //  GHL CONNECTION (via Cloudflare Worker proxy — no keys in browser)
