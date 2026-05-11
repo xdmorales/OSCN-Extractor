@@ -203,6 +203,16 @@ tr:hover td{background:rgba(240,192,64,.03);}
       <button class="btn-sm" onclick="testConn('maps')">Test Connection</button>
       <div class="hint">Uses the same Apps Script URL — paste it in both boxes.</div>
     </div>
+
+    <div class="conn-item" style="margin-top:8px;">
+      <div class="conn-label">⚡ GoHighLevel — push leads directly to CRM</div>
+      <div class="conn-status">
+        <div class="conn-dot" id="ghl-dot-pref"></div>
+        <span id="ghl-status-pref">Not tested</span>
+      </div>
+      <button class="btn-sm" onclick="testGhlConnPref()">Test Connection</button>
+      <div class="hint">API key is secured on your Cloudflare Worker — nothing to enter here.</div>
+    </div>
   </div>
 
   <div class="card">
@@ -1353,6 +1363,24 @@ async function loadGHLPipelineIds(){
   }catch(e){console.warn('Could not load GHL pipelines:',e);}
 }
 
+function setGhlDotPref(state){
+  const dot=document.getElementById('ghl-dot-pref');
+  const txt=document.getElementById('ghl-status-pref');
+  if(!dot) return;
+  if(state==='connected'){dot.className='conn-dot connected';txt.textContent='Connected ✓';}
+  else if(state==='error'){dot.className='conn-dot error';txt.textContent='Error — check Worker setup';}
+  else{dot.className='conn-dot';txt.textContent='Testing...';}
+}
+async function testGhlConnPref(){
+  setGhlDotPref('testing');
+  try{
+    const res=await fetch(GHL_PROXY+'/test');
+    if(res.ok){
+      setGhlDotPref('connected');
+      loadGHLPipelineIds();
+    } else setGhlDotPref('error');
+  }catch(e){setGhlDotPref('error');}
+}
 async function testGhlConn(){
   setGhlDot('testing');
   try{
