@@ -1040,21 +1040,25 @@ async function pushPrefToGHL(){
       const data=await res.json();
       const contactId=data.contact?.id;
 
-      // 2. Add note with extracted data
       if(contactId){
+        // 2. Add note with extracted data
         const noteRes=await fetch(GHL_PROXY+'/notes/'+contactId,{
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({body:noteText})
         });
         if(!noteRes.ok) console.warn('Note failed for',contactId,await noteRes.text());
+
+        // 3. Create opportunity in "REI Simply Leads Pipeline" → "New Leads"
+        const oppName=`${r.owner_name||'Unknown'} — ${r.property_address||r.case_number||''}`.trim();
+        await createGHLOpportunity(contactId, oppName, tags);
       }
       success++;
     }catch(e){failed++;console.error('GHL push error:',e);}
   }
 
   btn.disabled=false;btn.textContent='⚡ Push to GHL';
-  if(failed===0) alert(`✅ ${success} lead(s) pushed to GoHighLevel with notes!`);
+  if(failed===0) alert(`✅ ${success} lead(s) pushed to GoHighLevel!`);
   else alert(`⚠️ ${success} pushed, ${failed} failed — check browser console`);
 }
 
@@ -1317,6 +1321,12 @@ async function runOSCNFetch(){
 // ══════════════════════════════════════════════════════════════
 const GHL_PROXY = 'https://oscn-proxy.xfutureinvestmentsllc.workers.dev/ghl';
 
+// Pipeline IDs — loaded once on connect, cached in memory
+let GHL_PIPELINE_ID = localStorage.getItem('ghl_pipeline_id') || '';
+let GHL_STAGE_ID    = localStorage.getItem('ghl_stage_id')    || '';
+const GHL_PIPELINE_NAME = 'REI Simply Leads Pipeline';
+const GHL_STAGE_NAME    = 'New Leads';
+
 function setGhlDot(state){
   const dot=document.getElementById('ghl-dot');
   const txt=document.getElementById('ghl-status');
@@ -1324,13 +1334,59 @@ function setGhlDot(state){
   else if(state==='error'){dot.className='conn-dot error';txt.textContent='Error — check Worker setup';}
   else{dot.className='conn-dot';txt.textContent='Testing...';}
 }
+
+async function loadGHLPipelineIds(){
+  try{
+    const res = await fetch(GHL_PROXY+'/pipelines');
+    if(!res.ok) return;
+    const data = await res.json();
+    const pipelines = data.pipelines || [];
+    const pipeline = pipelines.find(p=>p.name===GHL_PIPELINE_NAME);
+    if(!pipeline){console.warn('Pipeline not found:',GHL_PIPELINE_NAME);return;}
+    GHL_PIPELINE_ID = pipeline.id;
+    const stage = (pipeline.stages||[]).find(s=>s.name===GHL_STAGE_NAME);
+    if(!stage){console.warn('Stage not found:',GHL_STAGE_NAME);return;}
+    GHL_STAGE_ID = stage.id;
+    localStorage.setItem('ghl_pipeline_id', GHL_PIPELINE_ID);
+    localStorage.setItem('ghl_stage_id', GHL_STAGE_ID);
+    console.log('GHL pipeline loaded — pipeline:',GHL_PIPELINE_ID,'stage:',GHL_STAGE_ID);
+  }catch(e){console.warn('Could not load GHL pipelines:',e);}
+}
+
 async function testGhlConn(){
   setGhlDot('testing');
   try{
     const res=await fetch(GHL_PROXY+'/test');
-    if(res.ok) setGhlDot('connected');
-    else setGhlDot('error');
+    if(res.ok){
+      setGhlDot('connected');
+      loadGHLPipelineIds(); // fetch pipeline+stage IDs in background
+    } else setGhlDot('error');
   }catch(e){setGhlDot('error');}
+}
+
+async function createGHLOpportunity(contactId, name, tags){
+  if(!GHL_PIPELINE_ID||!GHL_STAGE_ID) return; // silently skip if IDs not loaded
+  try{
+    await fetch(GHL_PROXY+'/opportunities',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        pipelineId: GHL_PIPELINE_ID,
+        pipelineStageId: GHL_STAGE_ID,
+        contactId,
+        name,
+        status:'open',
+      })
+    });
+  }catch(e){console.warn('Opportunity create failed:',e);}
+}
+
+// Auto-load pipeline IDs if already cached
+if(GHL_PIPELINE_ID && GHL_STAGE_ID){
+  console.log('GHL pipeline IDs loaded from cache');
+} else {
+  // Try to load on startup silently
+  setTimeout(loadGHLPipelineIds, 2000);
 }
 async function pushSSToGHL(){
   const good=ssRows.filter(r=>!r._error&&!r._duplicate&&r._ss_status==='good');
@@ -1356,8 +1412,14 @@ async function pushSSToGHL(){
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(body)
       });
-      if(res.ok)success++;
-      else{failed++;console.error('GHL error:',res.status,await res.text());}
+      if(!res.ok){failed++;console.error('GHL error:',res.status,await res.text());continue;}
+      const data=await res.json();
+      const contactId=data.contact?.id;
+      if(contactId){
+        const oppName=`${r.owner_name||'Unknown'} — ${r.property_address||r.case_number||''}`.trim();
+        await createGHLOpportunity(contactId, oppName, body.tags);
+      }
+      success++;
     }catch(e){failed++;console.error('GHL push error:',e);}
   }
   if(failed===0)ssSyncLog('sl-ghl','success',`⚡ ${success} lead(s) pushed to GoHighLevel ✓`);
