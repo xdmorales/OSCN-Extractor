@@ -1345,22 +1345,40 @@ function setGhlDot(state){
   else{dot.className='conn-dot';txt.textContent='Testing...';}
 }
 
-async function loadGHLPipelineIds(){
+async function loadGHLPipelineIds(verbose=false){
   try{
     const res = await fetch(GHL_PROXY+'/pipelines');
-    if(!res.ok) return;
+    if(!res.ok){
+      if(verbose) alert(`GHL pipelines fetch failed (${res.status}) — make sure Opportunities scope is enabled on your GHL integration.`);
+      return;
+    }
     const data = await res.json();
     const pipelines = data.pipelines || [];
-    const pipeline = pipelines.find(p=>p.name===GHL_PIPELINE_NAME);
-    if(!pipeline){console.warn('Pipeline not found:',GHL_PIPELINE_NAME);return;}
+    if(verbose) console.log('GHL pipelines found:', pipelines.map(p=>p.name));
+
+    // Case-insensitive match
+    const pipeline = pipelines.find(p=>p.name.toLowerCase()===GHL_PIPELINE_NAME.toLowerCase());
+    if(!pipeline){
+      if(verbose) alert(`Pipeline "${GHL_PIPELINE_NAME}" not found.\n\nPipelines in your GHL:\n${pipelines.map(p=>p.name).join('\n')}`);
+      return;
+    }
     GHL_PIPELINE_ID = pipeline.id;
-    const stage = (pipeline.stages||[]).find(s=>s.name===GHL_STAGE_NAME);
-    if(!stage){console.warn('Stage not found:',GHL_STAGE_NAME);return;}
+
+    const stages = pipeline.stages || [];
+    const stage = stages.find(s=>s.name.toLowerCase()===GHL_STAGE_NAME.toLowerCase());
+    if(!stage){
+      if(verbose) alert(`Stage "${GHL_STAGE_NAME}" not found in pipeline "${pipeline.name}".\n\nStages available:\n${stages.map(s=>s.name).join('\n')}`);
+      return;
+    }
     GHL_STAGE_ID = stage.id;
     localStorage.setItem('ghl_pipeline_id', GHL_PIPELINE_ID);
     localStorage.setItem('ghl_stage_id', GHL_STAGE_ID);
+    if(verbose) alert(`✅ Pipeline ready!\nPipeline: ${pipeline.name}\nStage: ${stage.name}`);
     console.log('GHL pipeline loaded — pipeline:',GHL_PIPELINE_ID,'stage:',GHL_STAGE_ID);
-  }catch(e){console.warn('Could not load GHL pipelines:',e);}
+  }catch(e){
+    if(verbose) alert('Could not load GHL pipelines: '+e.message);
+    console.warn('Could not load GHL pipelines:',e);
+  }
 }
 
 function setGhlDotPref(state){
@@ -1377,7 +1395,7 @@ async function testGhlConnPref(){
     const res=await fetch(GHL_PROXY+'/test');
     if(res.ok){
       setGhlDotPref('connected');
-      loadGHLPipelineIds();
+      await loadGHLPipelineIds(true); // verbose — shows pipeline/stage names
     } else setGhlDotPref('error');
   }catch(e){setGhlDotPref('error');}
 }
