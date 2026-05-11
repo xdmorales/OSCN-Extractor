@@ -262,7 +262,7 @@ tr:hover td{background:rgba(240,192,64,.03);}
       <div class="tbtn-group">
         <button class="tbtn" onclick="copyTSV()">📋 Copy</button>
         <button class="tbtn" onclick="exportCSV()">⬇️ CSV</button>
-        <button class="tbtn" onclick="exportGHL()">⚡ GHL</button>
+        <button class="tbtn green-btn" id="pref-ghl-btn" onclick="pushPrefToGHL()" style="border-color:rgba(240,192,64,.4);color:var(--accent);">⚡ Push to GHL</button>
         <button class="tbtn green-btn" onclick="pushToSheets()">📊 Push Sheets</button>
         <button class="tbtn green-btn" onclick="pushToMaps()">📍 Push Maps</button>
       </div>
@@ -981,6 +981,83 @@ function getCSVRows(ghl=false){
 function toCSV(rows){return rows.map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');}
 function exportCSV(){if(!rows.length)return;const b=new Blob([toCSV(getCSVRows())],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='xde_leads.csv';a.click();}
 function exportGHL(){if(!rows.length)return;const b=new Blob([toCSV(getCSVRows(true))],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='ghl_import.csv';a.click();}
+
+async function pushPrefToGHL(){
+  if(!rows.length)return alert('No leads extracted yet.');
+  const btn=document.getElementById('pref-ghl-btn');
+  btn.disabled=true;btn.textContent='⏳ Pushing...';
+  let success=0,failed=0;
+
+  for(const r of rows){
+    const nm=(r.owner_name||'').trim().split(/\s+/);
+    const lastName=nm.length>1?nm[nm.length-1]:'';
+    const firstName=nm.slice(0,nm.length>1?nm.length-1:1).join(' ');
+
+    // Tags — auto-set from doc_type
+    const docType=r.doc_type||'foreclosure';
+    const tags=[];
+    if(docType==='foreclosure'||docType==='both') tags.push('pre-foreclosure');
+    if(docType==='probate'||docType==='both') tags.push('probate');
+    tags.push('oklahoma');
+    if(r.county) tags.push(r.county.toLowerCase()+'-county');
+
+    // Notes — full extracted summary
+    const lienarr=Array.isArray(r.additional_liens)?r.additional_liens:[];
+    const noteLines=[
+      `Case: ${r.case_number||'N/A'} | County: ${r.county||'N/A'} | Filed: ${r.date_filed||'N/A'}`,
+      `Property: ${r.property_address||'N/A'}`,
+      `Mailing: ${[r.mailing_address,r.mailing_city,r.mailing_state,r.mailing_zip].filter(Boolean).join(', ')||'N/A'}`,
+      `Lender: ${r.lender_name||'N/A'}`,
+      `Loan Balance: $${r.loan_balance||'N/A'} | Rate: ${r.interest_rate||'N/A'}% | Original Loan: $${r.original_loan_amount||'N/A'}`,
+      `Default Date: ${r.default_date||'N/A'} | Months Behind: ${r._months_behind||'N/A'}`,
+      `Est. Payoff Today: $${r._est_payoff||'N/A'}`,
+    ];
+    if(lienarr.length) noteLines.push(`Additional Liens: ${lienarr.map(l=>`${l.creditor}: $${l.amount}`).join(' | ')}`);
+    if(docType==='probate'||docType==='both'){
+      noteLines.push(`Probate — Deceased: ${r.deceased_name||'N/A'} | DOD: ${r.date_of_death||'N/A'}`);
+      if(r.real_estate_description) noteLines.push(`Estate Property: ${r.real_estate_description}`);
+      if(r.mortgage_on_estate_property) noteLines.push(`Mortgage on Estate: ${r.mortgage_detail||'YES'}`);
+      if(Array.isArray(r.heirs)&&r.heirs.length) noteLines.push(`Heirs: ${r.heirs.filter(h=>h.name).map(h=>h.name+(h.relationship?` (${h.relationship})`:'')).join(', ')}`);
+    }
+    const noteText=noteLines.join('\n');
+
+    try{
+      // 1. Create contact
+      const res=await fetch(GHL_PROXY+'/contacts',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          firstName,lastName,
+          address1:r.property_address||r.mailing_address||'',
+          city:r.mailing_city||'',
+          state:r.mailing_state||'OK',
+          postalCode:r.mailing_zip||'',
+          source:"Xavier's Extractor",
+          tags,
+        })
+      });
+      if(!res.ok){failed++;console.error('GHL contact error:',res.status,await res.text());continue;}
+      const data=await res.json();
+      const contactId=data.contact?.id;
+
+      // 2. Add note with extracted data
+      if(contactId){
+        const noteRes=await fetch(GHL_PROXY+'/notes/'+contactId,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({body:noteText})
+        });
+        if(!noteRes.ok) console.warn('Note failed for',contactId,await noteRes.text());
+      }
+      success++;
+    }catch(e){failed++;console.error('GHL push error:',e);}
+  }
+
+  btn.disabled=false;btn.textContent='⚡ Push to GHL';
+  if(failed===0) alert(`✅ ${success} lead(s) pushed to GoHighLevel with notes!`);
+  else alert(`⚠️ ${success} pushed, ${failed} failed — check browser console`);
+}
+
 function copyTSV(){if(!rows.length)return;const tsv=getCSVRows().map(r=>r.join('\t')).join('\n');navigator.clipboard.writeText(tsv);const btn=event.target;btn.textContent='✓ Copied!';setTimeout(()=>btn.textContent='📋 Copy',1500);}
 
 function showHelp(){document.getElementById('modal-overlay').style.display='block';}
@@ -1006,47 +1083,69 @@ function parseXlsxFile(file){
     try{
       const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(ws, {defval:''});
+
+      // bid4assets files have a title row first — find the real header row
+      const rawRows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      let headerRowIdx = 0;
+      for(let i = 0; i < Math.min(rawRows.length, 15); i++){
+        const cells = rawRows[i].map(c=>String(c).trim());
+        // Found a data row — header must be the row before it
+        if(cells.some(c=>/^[A-Z]{2}-\d{2,4}-\d+/.test(c))){
+          headerRowIdx = Math.max(0, i - 1);
+          break;
+        }
+        // Found a header row by keywords
+        const joined = cells.join('|').toLowerCase();
+        if(joined.includes('case') || joined.includes('parcel') || joined.includes('address')){
+          headerRowIdx = i;
+          break;
+        }
+      }
+
+      const data = XLSX.utils.sheet_to_json(ws, {defval:'', range: headerRowIdx});
       if(!data.length){alert('Excel file appears empty.');return;}
 
-      // Detect columns by scanning headers case-insensitively, then fallback to pattern scan
-      const firstRow = data[0];
-      const headers = Object.keys(firstRow);
+      const headers = Object.keys(data[0]);
 
       function findCol(row, ...candidates){
         for(const c of candidates){
           const key = headers.find(h=>h.toLowerCase().replace(/[^a-z0-9]/g,'')===c.toLowerCase().replace(/[^a-z0-9]/g,''));
-          if(key && String(row[key]).trim()) return String(row[key]).trim();
+          if(key !== undefined && String(row[key]).trim()) return String(row[key]).trim();
         }
         return '';
       }
 
-      // Auto-detect the case number column: first col whose value matches OSCN pattern
-      let caseCol = headers.find(h=>['case#','casenumber','case number','caseno','case no'].includes(h.toLowerCase().replace(/[^a-z0-9]/g,'')));
+      // Auto-detect case number column — header keyword match first
+      let caseCol = headers.find(h=>{
+        const n = h.toLowerCase().replace(/[^a-z0-9]/g,'');
+        return n==='case' || n==='casenumber' || n==='caseno' || n==='case#' || n.startsWith('case');
+      });
+      // Then scan cell values for the OSCN pattern
       if(!caseCol){
-        // Scan first real data row for a cell that looks like a case number
-        for(const h of headers){
-          if(/^[A-Z]{2}-\d{2,4}-\d+/.test(String(firstRow[h]).trim())){caseCol=h;break;}
+        outer: for(const row of data.slice(0,5)){
+          for(const h of headers){
+            if(/^[A-Z]{2}-\d{2,4}-\d+/.test(String(row[h]).trim())){caseCol=h;break outer;}
+          }
         }
       }
 
       ssFetchCases = data.map(row=>{
-        const caseNum = caseCol ? String(row[caseCol]).trim() : findCol(row,'Case #','Case Number','CaseNumber','case_number','CaseNo');
-        const address = findCol(row,'Address','Property Address','PropertyAddress','SitusAddress');
-        const bid = findCol(row,'Opening Bid','Current Bid','OpeningBid','CurrentBid','MinBid','Minimum Bid');
+        const caseNum = caseCol ? String(row[caseCol]).trim() : '';
+        const address = findCol(row,'Address','Property Address','PropertyAddress','SitusAddress','Legal Description');
+        const bid = findCol(row,'Opening Bid','Current Bid','OpeningBid','CurrentBid','MinBid','Minimum Bid','Starting Bid');
         const saleDate = findCol(row,'Sale Date','Sales Date','SaleDate','SalesDate','AuctionDate','Auction Date');
         return {caseNum, address, bid, saleDate};
       }).filter(r=>r.caseNum && /[A-Z]{2}-/.test(r.caseNum));
 
       if(!ssFetchCases.length){
-        alert(`No case numbers found.\n\nColumns in your file:\n${headers.join(', ')}\n\nExpecting a column with values like CJ-25-1234.`);
+        alert(`No case numbers found.\n\nColumns detected (row ${headerRowIdx+1}):\n${headers.join(', ')}\n\nExpecting a column with values like CJ-25-1234.`);
         return;
       }
 
       renderFetchList();
       const btn = document.getElementById('ss-fetch-btn');
       btn.disabled = false;
-      btn.textContent = `🔄 Fetch ${ssFetchCases.length} Cases from OSCN`;
+      btn.textContent = `\u{1F504} Fetch ${ssFetchCases.length} Cases from OSCN`;
       btn.style.opacity = '1';
     }catch(err){alert('Could not read Excel file: '+err.message);}
   };
