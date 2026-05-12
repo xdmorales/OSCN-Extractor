@@ -627,6 +627,17 @@ async function startProcessing(){
 
       setLogStatus(f, 'AI reading...', 'proc');
       let r = await callClaude(useVision ? '' : pdfText, f.name, images);
+
+      // If key fields are empty and we didn't already use vision, retry with vision
+      // (handles garbled OCR text that passed the length check)
+      if (!useVision && !r.owner_name && !r.deceased_name) {
+        setLogStatus(f, 'poor OCR — retrying with vision...', 'proc');
+        prevWasVision = true;
+        const visionImages = await extractImagesFromPDF(f, 10);
+        const r2 = await callClaude('', f.name, visionImages);
+        if (r2.owner_name || r2.deceased_name) r = r2;
+      }
+
       r._file = f.name;
       r = calcMetrics(r);
 
@@ -709,6 +720,11 @@ async function retryFile(fileName){
     const useVision = isTextEmpty(pdfText);
     const images = useVision ? await extractImagesFromPDF(f,10) : null;
     let r = await callClaude(useVision?'':pdfText, f.name, images);
+    if (!useVision && !r.owner_name && !r.deceased_name) {
+      const visionImages = await extractImagesFromPDF(f,10);
+      const r2 = await callClaude('', f.name, visionImages);
+      if (r2.owner_name || r2.deceased_name) r = r2;
+    }
     r._file = f.name; r = calcMetrics(r);
 
     if(r.case_number && alreadyPushed(r.case_number)){
