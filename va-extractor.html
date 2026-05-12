@@ -362,13 +362,17 @@ IMPORTANT RULES:
 ═══ FOR PROBATE OR BOTH ═══
 
 real_estate_found → true if ANY real property is listed anywhere in the document (inventory, petition, exhibits), false if none
-real_estate_description → Full address and/or legal description of any real property found in the estate
+real_estate_description → Full address and/or legal description of any real property found in the estate. Extract any street address if present.
+property_address → For probate: extract any explicit street address for estate real property (same rule as foreclosure — no legal descriptions alone)
+mailing_address / mailing_city / mailing_state / mailing_zip → For probate: look for the petitioner's or administrator's mailing address in the document header or signature block
 life_estate_flag → true if the deceased held a LIFE ESTATE interest in property
 mortgage_on_estate_property → true if any mortgage, deed of trust, or lien is listed as a debt against estate real property
 mortgage_detail → Lender name and outstanding balance if a mortgage exists on estate real property
+petitioner_name → Full name of the person who FILED this probate petition (the petitioner listed at the top of the filing — often an heir or family member)
+estate_administrator → Full name of the personal representative, administrator, or executor if named or appointed in the document
 
 Return ONLY valid JSON matching this exact structure:
-{"doc_type":"foreclosure","case_number":"","county":"","date_filed":"","owner_name":"","mailing_address":"","mailing_city":"","mailing_state":"","mailing_zip":"","property_address":"","legal_description":"","lender_name":"","loan_balance":"","interest_rate":"","balance_as_of_date":"","first_default_date":"","default_date":"","monthly_payment":"","original_loan_amount":"","additional_liens":[{"creditor":"","amount":null,"type":""}],"probate_flag":false,"probate_note":"","deceased_name":"","date_of_death":"","probate_type":"","real_estate_found":false,"real_estate_description":"","life_estate_flag":false,"life_estate_note":"","mortgage_on_estate_property":false,"mortgage_detail":"","heirs":[{"name":"","relationship":""}]}`;
+{"doc_type":"foreclosure","case_number":"","county":"","date_filed":"","owner_name":"","mailing_address":"","mailing_city":"","mailing_state":"","mailing_zip":"","property_address":"","legal_description":"","lender_name":"","loan_balance":"","interest_rate":"","balance_as_of_date":"","first_default_date":"","default_date":"","monthly_payment":"","original_loan_amount":"","additional_liens":[{"creditor":"","amount":null,"type":""}],"probate_flag":false,"probate_note":"","deceased_name":"","date_of_death":"","probate_type":"","real_estate_found":false,"real_estate_description":"","life_estate_flag":false,"life_estate_note":"","mortgage_on_estate_property":false,"mortgage_detail":"","petitioner_name":"","estate_administrator":"","heirs":[{"name":"","relationship":""}]}`;
 
   const messages = images
     ? [{role:'user',content:[
@@ -419,14 +423,31 @@ function setLogStatus(file, statusText, statusClass, showRetry=false){
 
 // ── GHL push ──
 async function pushOneToGHL(r){
-  const nm = (r.owner_name||'').trim().split(/\s+/);
-  const lastName = nm.length>1 ? nm[nm.length-1] : '';
-  const firstName = nm.slice(0, nm.length>1 ? nm.length-1 : 1).join(' ');
-
   const docType = r.doc_type||'foreclosure';
+  const isProbate = docType==='probate'||docType==='both';
+
+  // Resolve the best contact name:
+  // Foreclosure → owner_name
+  // Probate → petitioner_name OR estate_administrator OR deceased_name + " (Estate)"
+  const rawName = (r.owner_name||'').trim() ||
+    (isProbate ? (r.petitioner_name||r.estate_administrator||'').trim() : '') ||
+    (isProbate && r.deceased_name ? r.deceased_name.trim()+' (Estate)' : '') ||
+    'Unknown';
+
+  const nm = rawName.split(/\s+/);
+  const lastName  = nm.length > 1 ? nm[nm.length-1] : '';
+  const firstName = nm.slice(0, nm.length > 1 ? nm.length-1 : 1).join(' ');
+
+  // Resolve best address — try property, then mailing, then first line of estate description
+  const estateAddrLine = (r.real_estate_description||'').split(/[\n,]/)[0].trim();
+  const address1  = r.property_address || r.mailing_address || estateAddrLine || '';
+  const city      = r.mailing_city || '';
+  const state     = r.mailing_state || 'OK';
+  const zip       = r.mailing_zip || '';
+
   const tags = [];
   if(docType==='foreclosure'||docType==='both') tags.push('pre-foreclosure');
-  if(docType==='probate'||docType==='both') tags.push('probate');
+  if(isProbate) tags.push('probate');
   tags.push('oklahoma');
   if(r.county) tags.push(r.county.toLowerCase()+'-county');
 
@@ -435,16 +456,22 @@ async function pushOneToGHL(r){
     `Case: ${r.case_number||'N/A'} | County: ${r.county||'N/A'} | Filed: ${r.date_filed||'N/A'}`,
     `Property: ${r.property_address||'N/A'}`,
     `Mailing: ${[r.mailing_address,r.mailing_city,r.mailing_state,r.mailing_zip].filter(Boolean).join(', ')||'N/A'}`,
-    `Lender: ${r.lender_name||'N/A'}`,
-    `Loan Balance: $${r.loan_balance||'N/A'} | Rate: ${r.interest_rate||'N/A'}% | Original Loan: $${r.original_loan_amount||'N/A'}`,
-    `Default Date: ${r.default_date||'N/A'} | Months Behind: ${r._months_behind||'N/A'}`,
-    `Est. Payoff Today: $${r._est_payoff||'N/A'}`,
   ];
-  if(lienarr.length) noteLines.push(`Additional Liens: ${lienarr.map(l=>`${l.creditor}: $${l.amount}`).join(' | ')}`);
-  if(docType==='probate'||docType==='both'){
-    noteLines.push(`Probate — Deceased: ${r.deceased_name||'N/A'} | DOD: ${r.date_of_death||'N/A'}`);
+  if(isProbate){
+    noteLines.push(`PROBATE — Deceased: ${r.deceased_name||'N/A'} | DOD: ${r.date_of_death||'N/A'}`);
+    if(r.petitioner_name) noteLines.push(`Petitioner (Filed By): ${r.petitioner_name}`);
+    if(r.estate_administrator) noteLines.push(`Administrator/Executor: ${r.estate_administrator}`);
     if(r.real_estate_description) noteLines.push(`Estate Property: ${r.real_estate_description}`);
     if(r.mortgage_on_estate_property) noteLines.push(`Mortgage on Estate: ${r.mortgage_detail||'YES'}`);
+    const heirList = Array.isArray(r.heirs) ? r.heirs.filter(h=>h.name) : [];
+    if(heirList.length) noteLines.push(`Heirs: ${heirList.map(h=>`${h.name}${h.relationship?' ('+h.relationship+')':''}`).join(' | ')}`);
+  }
+  if(docType==='foreclosure'||docType==='both'){
+    noteLines.push(`Lender: ${r.lender_name||'N/A'}`);
+    noteLines.push(`Loan Balance: $${r.loan_balance||'N/A'} | Rate: ${r.interest_rate||'N/A'}% | Original Loan: $${r.original_loan_amount||'N/A'}`);
+    noteLines.push(`Default Date: ${r.default_date||'N/A'} | Months Behind: ${r._months_behind||'N/A'}`);
+    noteLines.push(`Est. Payoff Today: $${r._est_payoff||'N/A'}`);
+    if(lienarr.length) noteLines.push(`Additional Liens: ${lienarr.map(l=>`${l.creditor}: $${l.amount}`).join(' | ')}`);
   }
 
   const res = await fetch(GHL_PROXY+'/contacts', {
@@ -452,10 +479,7 @@ async function pushOneToGHL(r){
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
       firstName, lastName,
-      address1: r.property_address||r.mailing_address||'',
-      city: r.mailing_city||'',
-      state: r.mailing_state||'OK',
-      postalCode: r.mailing_zip||'',
+      address1, city, state, postalCode: zip,
       source: "Xavier's Extractor",
       tags,
     })
@@ -475,6 +499,9 @@ async function pushOneToGHL(r){
 
     // Add to pipeline
     if(GHL_PIPELINE_ID && GHL_STAGE_ID){
+      const oppLabel = isProbate
+        ? `${r.deceased_name||rawName} (Probate) — ${r.property_address||estateAddrLine||r.case_number||''}`.trim()
+        : `${rawName} — ${r.property_address||r.case_number||''}`.trim();
       await fetch(GHL_PROXY+'/opportunities', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
@@ -482,7 +509,7 @@ async function pushOneToGHL(r){
           pipelineId: GHL_PIPELINE_ID,
           pipelineStageId: GHL_STAGE_ID,
           contactId,
-          name: `${r.owner_name||'Unknown'} — ${r.property_address||r.case_number||''}`.trim(),
+          name: oppLabel,
           status: 'open',
         })
       }).catch(()=>{});
